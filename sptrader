@@ -1,0 +1,339 @@
+#!/bin/bash
+#
+# sptrader - SPtrader Command Line Interface
+#
+# Description:
+#   Unified management interface for the SPtrader forex trading platform.
+#   This CLI wrapper provides convenient access to all system management
+#   functions through a single command with subcommands for different operations.
+#
+# Main Commands:
+#   start      - Start all services in correct order with health checks
+#   stop       - Gracefully stop all services
+#   restart    - Stop and restart all services
+#   status     - Check service health and status
+#   monitor    - Interactive real-time monitoring dashboard
+#   logs       - View service logs (use -f to follow)
+#   api        - API management (health, stats, docs, test)
+#   db         - Database operations (console, query, stats)
+#   optimize   - Run QuestDB viewport optimizations
+#   test       - Run test suites
+#   help       - Display help information
+#
+# API Subcommands:
+#   api health - Check API connectivity
+#   api stats  - View cache and performance statistics
+#   api docs   - Open data contract documentation
+#   api test   - Run API test suite
+#
+# Database Subcommands:
+#   db console        - Open QuestDB web console
+#   db query '<SQL>'  - Execute SQL query
+#   db stats          - View data statistics
+#
+# Features:
+#   - Professional header display
+#   - Color-coded output for clarity
+#   - Delegates to specialized scripts for each function
+#   - Consistent error handling
+#   - Platform detection for browser opening
+#
+# Usage Examples:
+#   sptrader start              # Start all services
+#   sptrader monitor            # Watch real-time dashboard
+#   sptrader logs -f            # Follow all logs
+#   sptrader api health         # Check API status
+#   sptrader db query "SELECT count(*) FROM market_data"
+#
+# Installation:
+#   Run ./install_cli.sh to add 'sptrader' to your PATH
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Paths
+SPTRADER_HOME="$HOME/SPtrader"
+API_DIR="$SPTRADER_HOME/api"
+FRONTEND_DIR="$SPTRADER_HOME/frontend"
+LOGS_DIR="$SPTRADER_HOME/logs"
+
+# Show header
+show_header() {
+    echo -e "${BLUE}${BOLD}"
+    echo "╔═══════════════════════════════════════╗"
+    echo "║         SPtrader Management CLI       ║"
+    echo "║      High-Performance Forex Trading   ║"
+    echo "╚═══════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+# Show usage
+show_usage() {
+    echo -e "${CYAN}Usage:${NC} $0 <command> [options]"
+    echo ""
+    echo -e "${CYAN}Commands:${NC}"
+    echo -e "  ${GREEN}start${NC}      Start all services"
+    echo -e "  ${GREEN}stop${NC}       Stop all services"
+    echo -e "  ${GREEN}restart${NC}    Restart all services"
+    echo -e "  ${GREEN}status${NC}     Check service status"
+    echo -e "  ${GREEN}monitor${NC}    Real-time monitoring dashboard"
+    echo -e "  ${GREEN}logs${NC}       Manage logs (show, clean, rotate, tail)"
+    echo -e "  ${GREEN}api${NC}        API management commands"
+    echo -e "  ${GREEN}db${NC}         Database management commands"
+    echo -e "  ${GREEN}optimize${NC}   Run QuestDB optimizations"
+    echo -e "  ${GREEN}test${NC}       Run tests (connectivity, api, viewport, all)"
+    echo -e "  ${GREEN}help${NC}       Show this help message"
+    echo ""
+    echo -e "${CYAN}Examples:${NC}"
+    echo "  $0 start              # Start all services"
+    echo "  $0 logs -f            # Follow all logs"
+    echo "  $0 api health         # Check API health"
+    echo "  $0 db query 'SELECT count(*) FROM ohlc_5m_v2'"
+    echo "  $0 test connectivity  # Test external services"
+    echo "  $0 test all           # Run all tests"
+    echo ""
+}
+
+# API subcommands
+api_command() {
+    case "$1" in
+        health)
+            echo -e "${CYAN}Checking API health...${NC}"
+            curl -s http://localhost:8080/api/v1/health | python3 -m json.tool
+            ;;
+        stats)
+            echo -e "${CYAN}API Statistics:${NC}"
+            curl -s http://localhost:8080/api/v1/stats | python3 -m json.tool
+            ;;
+        docs)
+            echo -e "${CYAN}Opening API documentation...${NC}"
+            echo "Visit: http://localhost:8080/api/v1/contract"
+            which xdg-open > /dev/null && xdg-open http://localhost:8080/api/v1/contract
+            ;;
+        test)
+            echo -e "${CYAN}Running API tests...${NC}"
+            cd "$API_DIR" && python test_api.py
+            ;;
+        *)
+            echo -e "${RED}Unknown API command: $1${NC}"
+            echo "Available: health, stats, docs, test"
+            ;;
+    esac
+}
+
+# Database subcommands
+db_command() {
+    case "$1" in
+        console)
+            echo -e "${CYAN}Opening QuestDB console...${NC}"
+            echo "Visit: http://localhost:9000"
+            which xdg-open > /dev/null && xdg-open http://localhost:9000
+            ;;
+        query)
+            if [ -z "$2" ]; then
+                echo -e "${RED}Please provide a query${NC}"
+                return 1
+            fi
+            echo -e "${CYAN}Executing query...${NC}"
+            curl -s -G "http://localhost:9000/exec" --data-urlencode "query=$2" | python3 -m json.tool
+            ;;
+        stats)
+            echo -e "${CYAN}Database Statistics:${NC}"
+            echo ""
+            # V2 data stats
+            V2_COUNT=$(curl -s -G "http://localhost:9000/exec" \
+                --data-urlencode "query=SELECT count(*) FROM ohlc_5m_v2" \
+                2>/dev/null | grep -o '"dataset":\[\[[0-9]*' | grep -o '[0-9]*' | tail -1)
+            
+            if [ -n "$V2_COUNT" ]; then
+                echo "V2 Data (Dukascopy): $(printf "%'d" $V2_COUNT) records"
+            fi
+            
+            # V1 data stats
+            V1_COUNT=$(curl -s -G "http://localhost:9000/exec" \
+                --data-urlencode "query=SELECT count(*) FROM eurusd_5m_oanda" \
+                2>/dev/null | grep -o '"dataset":\[\[[0-9]*' | grep -o '[0-9]*' | tail -1)
+            
+            if [ -n "$V1_COUNT" ]; then
+                echo "V1 Data (Oanda): $(printf "%'d" $V1_COUNT) records"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown database command: $1${NC}"
+            echo "Available: console, query, stats"
+            ;;
+    esac
+}
+
+# Logs command
+logs_command() {
+    case "$1" in
+        -f|follow)
+            echo -e "${CYAN}Following runtime logs... (Ctrl+C to stop)${NC}"
+            tail -f "$LOGS_DIR/runtime"/*.log
+            ;;
+        show)
+            "$SPTRADER_HOME/tools/manage_logs.sh" show
+            ;;
+        clean)
+            "$SPTRADER_HOME/tools/manage_logs.sh" clean "$2"
+            ;;
+        rotate)
+            "$SPTRADER_HOME/tools/manage_logs.sh" rotate
+            ;;
+        tail)
+            if [ -z "$2" ]; then
+                echo -e "${RED}Usage: sptrader logs tail <log_name>${NC}"
+                echo "Example: sptrader logs tail oanda_feed"
+            else
+                "$SPTRADER_HOME/tools/manage_logs.sh" tail "$2"
+            fi
+            ;;
+        ""|recent)
+            echo -e "${CYAN}Recent log entries:${NC}"
+            echo ""
+            # Show runtime logs
+            echo -e "${YELLOW}=== Runtime Logs ===${NC}"
+            for log in "$LOGS_DIR/runtime"/*.log; do
+                if [ -f "$log" ]; then
+                    basename=$(basename "$log")
+                    echo -e "${BLUE}--- $basename ---${NC}"
+                    tail -3 "$log"
+                    echo ""
+                fi
+            done
+            # Show status logs
+            echo -e "${YELLOW}=== Status Logs ===${NC}"
+            for log in "$LOGS_DIR/status"/*.log; do
+                if [ -f "$log" ]; then
+                    basename=$(basename "$log")
+                    echo -e "${BLUE}--- $basename ---${NC}"
+                    tail -3 "$log"
+                    echo ""
+                fi
+            done
+            ;;
+        *)
+            echo -e "${RED}Unknown logs command: $1${NC}"
+            echo "Available commands:"
+            echo "  logs         - Show recent entries"
+            echo "  logs -f      - Follow runtime logs"
+            echo "  logs show    - Show log status and sizes"
+            echo "  logs clean   - Clean logs (all|runtime|status|archive)"
+            echo "  logs rotate  - Archive old logs"
+            echo "  logs tail    - Follow specific log"
+            ;;
+    esac
+}
+
+# Main command processing
+case "$1" in
+    start)
+        show_header
+        "$SPTRADER_HOME/start_go_services.sh"
+        ;;
+        
+    stop)
+        show_header
+        "$SPTRADER_HOME/stop_all.sh"
+        ;;
+        
+    restart)
+        show_header
+        echo -e "${YELLOW}Restarting services...${NC}"
+        "$SPTRADER_HOME/stop_all.sh"
+        sleep 3
+        "$SPTRADER_HOME/start_go_services.sh"
+        ;;
+        
+    status)
+        show_header
+        "$SPTRADER_HOME/tools/check_services.sh"
+        ;;
+        
+    monitor)
+        "$SPTRADER_HOME/tools/monitor.sh"
+        ;;
+        
+    logs)
+        show_header
+        logs_command "$2" "$3"
+        ;;
+        
+    api)
+        show_header
+        api_command "$2" "$3"
+        ;;
+        
+    db|database)
+        show_header
+        db_command "$2" "$3"
+        ;;
+        
+    optimize)
+        show_header
+        echo -e "${CYAN}Running QuestDB optimizations...${NC}"
+        cd "$SPTRADER_HOME" && python scripts/execute_questdb_optimizations.py
+        ;;
+        
+    test)
+        show_header
+        # Check if specific test type was requested
+        case "$2" in
+            api)
+                echo -e "${CYAN}Running API tests...${NC}"
+                cd "$API_DIR" && python test_api.py
+                ;;
+            viewport)
+                echo -e "${CYAN}Running viewport tests...${NC}"
+                cd "$API_DIR" && python test_viewport.py
+                ;;
+            connectivity|conn)
+                echo -e "${CYAN}Running connectivity tests...${NC}"
+                "$SPTRADER_HOME/tools/test_connectivity.sh"
+                ;;
+            all|"")
+                echo -e "${CYAN}Running all tests...${NC}"
+                echo ""
+                # Connectivity tests first
+                "$SPTRADER_HOME/tools/test_connectivity.sh"
+                echo ""
+                # Then API tests
+                echo -e "${CYAN}Running API tests...${NC}"
+                cd "$API_DIR" && python test_api.py
+                echo ""
+                # Then viewport tests
+                echo -e "${CYAN}Running viewport tests...${NC}"
+                cd "$API_DIR" && python test_viewport.py
+                ;;
+            *)
+                echo -e "${RED}Unknown test type: $2${NC}"
+                echo "Available test types:"
+                echo "  connectivity - Test external service connections"
+                echo "  api         - Test API endpoints"  
+                echo "  viewport    - Test viewport functionality"
+                echo "  all         - Run all tests (default)"
+                exit 1
+                ;;
+        esac
+        ;;
+        
+    help|--help|-h|"")
+        show_header
+        show_usage
+        ;;
+        
+    *)
+        show_header
+        echo -e "${RED}Unknown command: $1${NC}"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac

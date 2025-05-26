@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(chmod:*)",
+      "Bash(python test:*)",
+      "Bash(pkill:*)",
+      "Bash(ln:*)",
+      "Bash(./sptrader:*)",
+      "Bash(sptrader test:*)",
+      "Bash(sptrader stop:*)",
+      "Bash(mv:*)",
+      "Bash(rmdir:*)",
+      "Bash(./venv/bin/pip show textual)",
+      "Bash(./verify_go_setup.sh:*)",
+      "Bash(ls:*)",
+      "Bash(/usr/local/go/bin/go build:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

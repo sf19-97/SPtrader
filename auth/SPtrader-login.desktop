@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=SPtrader-login
+Comment=SPtrader with Matrix Authentication
+Exec=/usr/bin/python3 /home/millet_frazier/SPtrader/auth/SPtrader-login.py
+Terminal=true
+Type=Application
+Icon=utilities-terminal
+Categories=Office;Finance;

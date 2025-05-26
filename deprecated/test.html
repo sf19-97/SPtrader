@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPtrader Test</title>
+</head>
+<body>
+    <h1>SPtrader Connection Test</h1>
+    <button onclick="testData()">Test Data Connection</button>
+    <div id="result"></div>
+
+    <script>
+        async function testData() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                // Test OHLC data
+                const response = await fetch('http://localhost:8081/exec?' + new URLSearchParams({
+                    query: `
+                        SELECT timestamp, open, high, low, close 
+                        FROM ohlc_5m 
+                        WHERE symbol = 'GBPUSD'
+                        ORDER BY timestamp DESC 
+                        LIMIT 5;
+                    `
+                }));
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>✅ Success!</h3>
+                    <p>Found ${data.dataset.length} records</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

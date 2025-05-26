@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/build/
+/vendor/
+go.sum
+
+# Test and coverage
+*.test
+*.out
+coverage.html
+*.prof
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# QuestDB data
+questdb-data/
+*.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Cache
+.cache/
+cache/
+
+# Node (for future frontend)
+node_modules/
+dist/
+.npm
+
+# Profiling
+*.pprof
+*.trace
+
+# Data files
+*.csv
+*.parquet
+data/
+
+# TUI
+tui/venv/
+tui/__pycache__/
