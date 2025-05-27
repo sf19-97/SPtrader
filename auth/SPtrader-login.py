@@ -475,23 +475,19 @@ class Matrix:
             time.sleep(DELAY_SPEED[self.args.delay])
             if self.handle_input():
                 break
-			
-		# Check if ACCESS GRANTED is fully displayed
+                
+            # Check if ACCESS GRANTED is fully displayed
             if self.access_granted and self.access_progress >= len(ACCESS_TEXT):
                 self.access_timer += 1
                 # Wait about 2 seconds after full reveal
                 if self.access_timer > 120:
-                    # Clean exit to launch SPtrader
+                    # Clean exit to show Morpheus choice screen
                     self.screen.clear()
                     self.screen.refresh()
                     curses.endwin()
                     
-                    # Launch SPtrader with clean TUI
-                    import os
-                    # Start services then launch the clean TUI
-                    os.system('/home/millet_frazier/SPtrader/start_background.sh')
-                    os.execv('/usr/bin/python3', 
-                            ['python3', '/home/millet_frazier/SPtrader/clean_tui.py'])
+                    # Show Morpheus choice screen
+                    morpheus_choice(self.args.test_mode)
         self.screen.erase()
         self.screen.refresh()
 
@@ -857,6 +853,74 @@ def display_text(screen, text: str, type_time: float, hold_time: float) -> None:
     time.sleep(hold_time)
     screen.erase()
     screen.refresh()
+
+
+def morpheus_choice(test_mode: bool) -> None:
+    """Morpheus choice screen - TUI or Frontend"""
+    def choice_screen(screen):
+        z = 0.06 if test_mode else 1  # For test mode - shorter test time
+        screen.erase()
+        screen.bkgd(" ", curses.color_pair(WAKE_UP_PAIR))
+        screen.refresh()
+        time.sleep(2 * z)
+        
+        
+        # Show options
+        screen.addstr(10, 5, "Choose your destiny:", curses.color_pair(WAKE_UP_PAIR) + curses.A_BOLD)
+        screen.addstr(12, 8, "Type 'bluepill' - Launch Clean TUI", curses.color_pair(WAKE_UP_PAIR) + curses.A_BOLD)
+        screen.addstr(13, 8, "Type 'redpill'  - Launch Frontend", curses.color_pair(WAKE_UP_PAIR) + curses.A_BOLD)
+        screen.addstr(15, 5, "Type your choice and press Enter...", curses.color_pair(WAKE_UP_PAIR))
+        screen.refresh()
+        
+        # Wait for choice input
+        typed_choice = ""
+        while True:
+            ch = screen.getch()
+            if ch == 10:  # Enter key
+                if typed_choice.lower() == "bluepill":
+                    # Blue pill - TUI
+                    display_text(screen, "You chose the blue pill...", 0.08 * z, 2.0 * z)
+                    display_text(screen, "Welcome to the TUI, Neo.", 0.08 * z, 2.0 * z)
+                    screen.erase()
+                    screen.refresh()
+                    curses.endwin()
+                    
+                    # Launch TUI
+                    import os
+                    os.system('/home/millet_frazier/SPtrader/start_background.sh')
+                    os.execv('/usr/bin/python3', 
+                            ['python3', '/home/millet_frazier/SPtrader/clean_tui.py'])
+                    break
+                    
+                elif typed_choice.lower() == "redpill":
+                    # Red pill - Frontend
+                    display_text(screen, "You chose the red pill...", 0.08 * z, 2.0 * z)
+                    display_text(screen, "Welcome to Wonderland, Neo.", 0.08 * z, 1.0 * z)
+                    display_text(screen, "Now let's see how far the rabbit hole goes...", 0.08 * z, 2.0 * z)
+                    screen.erase()
+                    screen.refresh()
+                    curses.endwin()
+                    
+                    # Launch Frontend
+                    import os
+                    os.system('/home/millet_frazier/SPtrader/start_background.sh')
+                    os.chdir('/home/millet_frazier/SPtrader/frontend')
+                    os.system('npm run start-no-sandbox')
+                    break
+                    
+                typed_choice = ""  # Clear if not valid choice
+                
+            elif ch == 127 or ch == 8:  # Backspace
+                typed_choice = typed_choice[:-1]
+            elif 32 <= ch <= 126:  # Printable characters
+                typed_choice += chr(ch)
+            elif ch in [ord('q'), ord('Q'), 27]:  # q, Q, or ESC to quit
+                curses.endwin()
+                sys.exit(0)
+    
+    # Setup curses for choice screen
+    os.environ.setdefault('ESCDELAY', '25')
+    curses.wrapper(choice_screen)
 
 
 def positive_int_zero_to_nine(value: str) -> int:

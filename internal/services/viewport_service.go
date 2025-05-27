@@ -20,52 +20,59 @@ type ViewportService struct {
 
 // NewViewportService creates a new viewport service
 func NewViewportService(pool *db.Pool, cache *CacheService) *ViewportService {
-	// Default configuration - would normally come from config
-	defaultConfig := config.DataConfig{
-		MaxPointsPerRequest: 10000,
-		Resolutions: map[string]config.ResolutionConfig{
-			"1m": {
-				Table:       "ohlc_1m_v2",
-				MinRange:    1 * time.Hour,
-				MaxRange:    24 * time.Hour,
-				MaxPoints:   1440,
-				Description: "1-minute bars for intraday",
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load config, using defaults")
+		// Use default configuration as fallback
+		cfg = &config.Config{
+			Data: config.DataConfig{
+				MaxPointsPerRequest: 10000,
+				Resolutions: map[string]config.ResolutionConfig{
+					"1m": {
+						Table:       "market_data_v2",
+						MinRange:    1 * time.Hour,
+						MaxRange:    24 * time.Hour,
+						MaxPoints:   1440,
+						Description: "1-minute bars for intraday",
+					},
+					"5m": {
+						Table:       "market_data_v2", 
+						MinRange:    4 * time.Hour,
+						MaxRange:    7 * 24 * time.Hour,
+						MaxPoints:   2016,
+						Description: "5-minute bars",
+					},
+					"1h": {
+						Table:       "market_data_v2",
+						MinRange:    24 * time.Hour,
+						MaxRange:    90 * 24 * time.Hour,
+						MaxPoints:   2160,
+						Description: "Hourly bars",
+					},
+					"4h": {
+						Table:       "market_data_v2",
+						MinRange:    7 * 24 * time.Hour,
+						MaxRange:    365 * 24 * time.Hour,
+						MaxPoints:   2190,
+						Description: "4-hour bars",
+					},
+					"1d": {
+						Table:       "market_data_v2",
+						MinRange:    30 * 24 * time.Hour,
+						MaxRange:    5 * 365 * 24 * time.Hour,
+						MaxPoints:   1825,
+						Description: "Daily bars",
+					},
+				},
 			},
-			"5m": {
-				Table:       "ohlc_5m_v2", 
-				MinRange:    4 * time.Hour,
-				MaxRange:    7 * 24 * time.Hour,
-				MaxPoints:   2016,
-				Description: "5-minute bars",
-			},
-			"1h": {
-				Table:       "ohlc_1h_v2",
-				MinRange:    24 * time.Hour,
-				MaxRange:    90 * 24 * time.Hour,
-				MaxPoints:   2160,
-				Description: "Hourly bars",
-			},
-			"4h": {
-				Table:       "ohlc_4h_viewport",
-				MinRange:    7 * 24 * time.Hour,
-				MaxRange:    365 * 24 * time.Hour,
-				MaxPoints:   2190,
-				Description: "4-hour bars",
-			},
-			"1d": {
-				Table:       "ohlc_1d_viewport",
-				MinRange:    30 * 24 * time.Hour,
-				MaxRange:    5 * 365 * 24 * time.Hour,
-				MaxPoints:   1825,
-				Description: "Daily bars",
-			},
-		},
+		}
 	}
 
 	return &ViewportService{
 		pool:   pool,
 		cache:  cache,
-		config: defaultConfig,
+		config: cfg.Data,
 	}
 }
 
@@ -123,8 +130,14 @@ func (v *ViewportService) GetSmartCandles(ctx context.Context, req models.Candle
 	// Create data service to fetch candles
 	dataService := NewDataService(v.pool)
 	
+	// Ensure timeframe matches resolution for proper aggregation
+	reqCopy := req
+	if req.Timeframe == "" || req.Timeframe != resolution {
+		reqCopy.Timeframe = resolution
+	}
+	
 	// Fetch candles with limit
-	candles, err := dataService.GetCandles(ctx, req, resConfig.Table, resConfig.MaxPoints)
+	candles, err := dataService.GetCandles(ctx, reqCopy, resConfig.Table, resConfig.MaxPoints)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get candles: %w", err)
 	}

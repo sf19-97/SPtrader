@@ -17,7 +17,17 @@
       "Bash(ls:*)",
       "Bash(/usr/local/go/bin/go build:*)",
       "Bash(python3:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git remote add:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:electron:*)",
+      "Bash(NODE_ENV=development ./node_modules/.bin/electron . --no-sandbox)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(npm run start-no-sandbox:*)",
+      "Bash(npm run:*)",
+      "Bash(sptrader start:*)"
     ],
     "deny": []
   }

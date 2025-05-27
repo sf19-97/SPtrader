@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SPtrader Desktop</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+    #header {
+      background: #2a2a2a;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    #chart {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 60px);
+    }
+    select, button {
+      padding: 5px 10px;
+      background: #3a3a3a;
+      color: white;
+      border: 1px solid #4a4a4a;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    select:hover, button:hover {
+      background: #4a4a4a;
+    }
+    #status {
+      margin-left: auto;
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h3 style="margin: 0;">SPtrader</h3>
+    
+    <label>Symbol:</label>
+    <select id="symbol">
+      <option value="EURUSD">EURUSD</option>
+      <option value="GBPUSD">GBPUSD</option>
+      <option value="USDJPY">USDJPY</option>
+    </select>
+    
+    <label>Timeframe:</label>
+    <select id="timeframe">
+      <option value="1m" selected>1 Minute</option>
+      <option value="5m">5 Minutes</option>
+      <option value="15m">15 Minutes</option>
+      <option value="30m">30 Minutes</option>
+      <option value="1h">1 Hour</option>
+      <option value="4h">4 Hours</option>
+      <option value="1d">1 Day</option>
+    </select>
+    
+    <div id="status">Connecting...</div>
+  </div>
+  
+  <div id="chart">
+    <div id="ohlc-info" style="position: absolute; top: 10px; left: 10px; background: rgba(42, 42, 42, 0.8); padding: 8px 12px; border-radius: 4px; font-size: 12px; font-family: monospace; display: none; z-index: 10;">
+      <div style="color: #888; margin-bottom: 4px;">OHLCV</div>
+      <div style="display: flex; gap: 15px;">
+        <span>O: <span id="info-open" style="color: #26a69a">-</span></span>
+        <span>H: <span id="info-high" style="color: #26a69a">-</span></span>
+        <span>L: <span id="info-low" style="color: #ef5350">-</span></span>
+        <span>C: <span id="info-close" style="color: #fff">-</span></span>
+        <span>V: <span id="info-volume" style="color: #888">-</span></span>
+      </div>
+    </div>
+  </div>
+  
+  <script src="node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

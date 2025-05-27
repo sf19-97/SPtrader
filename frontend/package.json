@@ -1,0 +1,16 @@
+{
+  "name": "sptrader-desktop",
+  "version": "1.0.0",
+  "description": "SPtrader Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start-no-sandbox": "electron . --no-sandbox"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0"
+  },
+  "dependencies": {
+    "lightweight-charts": "^4.1.0"
+  }
+}

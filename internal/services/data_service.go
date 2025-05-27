@@ -23,21 +23,67 @@ func NewDataService(pool *db.Pool) *DataService {
 
 // GetCandles retrieves OHLC data for the specified parameters
 func (s *DataService) GetCandles(ctx context.Context, req models.CandleRequest, table string, limit int) ([]models.Candle, error) {
-	query := fmt.Sprintf(`
-		SELECT 
-			timestamp,
-			open,
-			high,
-			low,
-			close,
-			volume
-		FROM %s
-		WHERE symbol = $1
-			AND timestamp >= $2
-			AND timestamp <= $3
-		ORDER BY timestamp
-		LIMIT $4
-	`, table)
+	// Check if we're querying an OHLC table or need to aggregate
+	var query string
+	
+	// If the table name contains "ohlc", assume it's pre-aggregated
+	if len(table) > 4 && table[:4] == "ohlc" {
+		// Query pre-aggregated table
+		query = fmt.Sprintf(`
+			SELECT 
+				timestamp,
+				open,
+				high,
+				low,
+				close,
+				volume
+			FROM %s
+			WHERE symbol = $1
+				AND timestamp >= $2
+				AND timestamp <= $3
+			ORDER BY timestamp
+			LIMIT $4
+		`, table)
+	} else {
+		// Generate SAMPLE BY query based on timeframe
+		sampleInterval := s.getTimeframeInterval(req.Timeframe)
+		if sampleInterval == "" {
+			// Fallback to raw data if timeframe not recognized
+			query = fmt.Sprintf(`
+				SELECT 
+					timestamp,
+					bid as open,
+					bid as high,
+					bid as low,
+					bid as close,
+					volume
+				FROM %s
+				WHERE symbol = $1
+					AND timestamp >= $2
+					AND timestamp <= $3
+				ORDER BY timestamp
+				LIMIT $4
+			`, table)
+		} else {
+			// Use SAMPLE BY to aggregate tick data into OHLC candles
+			query = fmt.Sprintf(`
+				SELECT 
+					timestamp,
+					first(bid) as open,
+					max(bid) as high,
+					min(bid) as low,
+					last(bid) as close,
+					sum(volume) as volume
+				FROM %s
+				WHERE symbol = $1
+					AND timestamp >= $2
+					AND timestamp <= $3
+				SAMPLE BY %s ALIGN TO CALENDAR
+				ORDER BY timestamp
+				LIMIT $4
+			`, table, sampleInterval)
+		}
+	}
 
 	start := time.Now()
 	rows, err := s.pool.Query(ctx, query, req.Symbol, req.Start, req.End, limit)
@@ -117,6 +163,30 @@ func (s *DataService) GetSymbols(ctx context.Context) ([]models.Symbol, error) {
 	}
 
 	return symbols, nil
+}
+
+// getTimeframeInterval converts timeframe string to QuestDB SAMPLE BY interval
+func (s *DataService) getTimeframeInterval(timeframe string) string {
+	switch timeframe {
+	case "1m":
+		return "1m"
+	case "5m":
+		return "5m"
+	case "15m":
+		return "15m"
+	case "30m":
+		return "30m"
+	case "1h":
+		return "1h"
+	case "4h":
+		return "4h"
+	case "1d":
+		return "1d"
+	case "1w":
+		return "1w"
+	default:
+		return ""
+	}
 }
 
 // GetTableStats retrieves statistics about a table

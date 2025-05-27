@@ -8,9 +8,9 @@ echo "Starting QuestDB..."
 cd ~/questdb-8.3.1-rt-linux-x86-64/bin && ./questdb.sh start
 sleep 5
 
-# Start Go API
+# Start Go API with environment variable
 echo "Starting Go API..."
-cd ~/SPtrader && ./build/sptrader-api &
+cd ~/SPtrader && export SPTRADER_HOME=/home/millet_frazier/SPtrader && ./build/sptrader-api &
 sleep 2
 
 # Start data feeds (still Python for now)

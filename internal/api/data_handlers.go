@@ -1,10 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sptrader/sptrader/internal/models"
 )
 
 // CheckDataAvailability checks what data is available for a symbol/timerange
@@ -122,13 +124,19 @@ func (h *Handlers) GetCandlesWithLazyLoad(c *gin.Context) {
 	// If we have partial data, return what we have and indicate gaps
 	if len(availability.Gaps) > 0 {
 		// Get candles for available data
-		candles, metadata, err := h.candleService.GetCandles(
+		req := models.CandleRequest{
+			Symbol:    symbol,
+			Timeframe: timeframe,
+			Start:     start,
+			End:       end,
+		}
+		// Determine the correct table name based on timeframe
+		tableName := fmt.Sprintf("ohlc_%s_v2", timeframe)
+		candles, err := h.candleService.GetCandles(
 			c.Request.Context(),
-			symbol,
-			timeframe,
-			start,
-			end,
-			"v2",
+			req,
+			tableName,
+			10000,
 		)
 
 		if err != nil {
@@ -143,7 +151,6 @@ func (h *Handlers) GetCandlesWithLazyLoad(c *gin.Context) {
 			"end":       end,
 			"count":     len(candles),
 			"candles":   candles,
-			"metadata":  metadata,
 			"gaps":      availability.Gaps,
 			"partial":   true,
 		})

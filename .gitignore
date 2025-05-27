@@ -65,6 +65,10 @@ questdb-data/
 .cache/
 cache/
 
+# Dukascopy cache files
+data_feeds/dukascopy_cache/
+*.bi5
+
 # Node (for future frontend)
 node_modules/
 dist/

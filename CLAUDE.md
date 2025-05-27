@@ -1,4 +1,3 @@
-
 # CLAUDE.md - Project-Specific Instructions for SPtrader
 *Last Updated: May 25, 2025 23:06 UTC*
 
@@ -7,6 +6,11 @@
 2. **Always read PROJECT_STATUS.md first to understand current state**
 3. **Check docs/SESSION_CHANGELOG.md for recent changes**
 4. **Use ILP for data ingestion (not HTTP SQL)**
+
+## Frontend Symlink Guidelines (Added May 25, 2025)
+- I have been provided a symlink to the front end
+- NEVER make changes to the front end directly 
+- ONLY observe functionality via symlink and offer suggestions
 
 ## Lazy Loading System (Added May 25, 2025 23:06 UTC)
 
