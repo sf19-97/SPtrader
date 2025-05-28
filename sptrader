@@ -164,9 +164,19 @@ db_command() {
                 echo "V1 Data (Oanda): $(printf "%'d" $V1_COUNT) records"
             fi
             ;;
+        gaps)
+            shift
+            echo -e "${CYAN}Checking for data gaps...${NC}"
+            # Check if --fill was passed, if not add it by default for interactive use
+            if [[ ! " $@ " =~ " --fill " ]] && [ -t 0 ]; then
+                python3 "$SPTRADER_HOME/tools/check_data_gaps.py" "$@" --fill
+            else
+                python3 "$SPTRADER_HOME/tools/check_data_gaps.py" "$@"
+            fi
+            ;;
         *)
             echo -e "${RED}Unknown database command: $1${NC}"
-            echo "Available: console, query, stats"
+            echo "Available: console, query, stats, gaps"
             ;;
     esac
 }

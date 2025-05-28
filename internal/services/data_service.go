@@ -165,6 +165,39 @@ func (s *DataService) GetSymbols(ctx context.Context) ([]models.Symbol, error) {
 	return symbols, nil
 }
 
+// GetDataRange retrieves the available date range for a symbol
+func (s *DataService) GetDataRange(ctx context.Context, symbol string) (map[string]interface{}, error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire connection: %w", err)
+	}
+	defer conn.Release()
+
+	query := `
+		SELECT 
+			MIN(timestamp) as start_date,
+			MAX(timestamp) as end_date,
+			COUNT(*) as tick_count
+		FROM market_data_v2
+		WHERE symbol = $1
+	`
+
+	var startDate, endDate time.Time
+	var tickCount int64
+
+	err = conn.QueryRow(ctx, query, symbol).Scan(&startDate, &endDate, &tickCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query data range: %w", err)
+	}
+
+	return map[string]interface{}{
+		"symbol":     symbol,
+		"start":      startDate,
+		"end":        endDate,
+		"tick_count": tickCount,
+	}, nil
+}
+
 // getTimeframeInterval converts timeframe string to QuestDB SAMPLE BY interval
 func (s *DataService) getTimeframeInterval(timeframe string) string {
 	switch timeframe {

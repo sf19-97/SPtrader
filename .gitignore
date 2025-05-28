@@ -86,3 +86,14 @@ data/
 # TUI
 tui/venv/
 tui/__pycache__/
+
+# Deprecated archive - all old code
+deprecated_archive/
+
+# Build artifacts
+cmd/api/api
+api.log
+
+# Local files
+.batch_progress.json
+.claude/

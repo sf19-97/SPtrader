@@ -107,7 +107,15 @@ func (v *ViewportService) GetSmartCandles(ctx context.Context, req models.Candle
 	resolution := req.Resolution
 	var resConfig config.ResolutionConfig
 	
-	if resolution == "" {
+	// If timeframe is specified, use it as the resolution
+	if req.Timeframe != "" {
+		resolution = req.Timeframe
+		var ok bool
+		resConfig, ok = v.config.Resolutions[resolution]
+		if !ok {
+			return nil, fmt.Errorf("invalid timeframe: %s", resolution)
+		}
+	} else if resolution == "" {
 		resolution, resConfig = v.SelectOptimalResolution(req.Start, req.End)
 	} else {
 		var ok bool
@@ -130,11 +138,9 @@ func (v *ViewportService) GetSmartCandles(ctx context.Context, req models.Candle
 	// Create data service to fetch candles
 	dataService := NewDataService(v.pool)
 	
-	// Ensure timeframe matches resolution for proper aggregation
+	// Use the request as-is, resolution is already set correctly above
 	reqCopy := req
-	if req.Timeframe == "" || req.Timeframe != resolution {
-		reqCopy.Timeframe = resolution
-	}
+	reqCopy.Resolution = resolution
 	
 	// Fetch candles with limit
 	candles, err := dataService.GetCandles(ctx, reqCopy, resConfig.Table, resConfig.MaxPoints)

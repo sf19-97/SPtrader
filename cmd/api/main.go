@@ -68,6 +68,7 @@ func main() {
 		// Market data
 		v1.GET("/symbols", handlers.GetSymbols)
 		v1.GET("/timeframes", handlers.GetTimeframes)
+		v1.GET("/data/range", handlers.GetDataRange)
 		
 		// Stats
 		v1.GET("/stats", handlers.GetStats)

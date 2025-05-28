@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Scrolling Test - SPtrader</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #0a0a0a;
+            color: #d9d9d9;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .header {
+            background-color: #1a1a1a;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #chart {
+            flex: 1;
+            position: relative;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(26, 26, 26, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .metrics {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(26, 26, 26, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+            max-width: 300px;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        .metric-label {
+            color: #888;
+        }
+        .metric-value {
+            color: #26a69a;
+            font-weight: bold;
+        }
+        select, button {
+            background: #2a2a2a;
+            color: #d9d9d9;
+            border: 1px solid #3a3a3a;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        #status {
+            font-size: 12px;
+            color: #26a69a;
+        }
+        .loading {
+            color: #ff9800 !important;
+        }
+        .error {
+            color: #ef5350 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="controls">
+                <select id="symbol">
+                    <option value="EURUSD">EUR/USD</option>
+                    <option value="GBPUSD">GBP/USD</option>
+                    <option value="USDJPY">USD/JPY</option>
+                </select>
+                <select id="timeframe">
+                    <option value="1m">1 minute</option>
+                    <option value="5m">5 minutes</option>
+                    <option value="15m">15 minutes</option>
+                    <option value="30m">30 minutes</option>
+                    <option value="1h" selected>1 hour</option>
+                    <option value="4h">4 hours</option>
+                    <option value="1d">1 day</option>
+                </select>
+                <button id="fit-chart">Fit Chart</button>
+                <button id="test-scroll">Test Scroll</button>
+                <button id="jump-to-start">Jump to Start</button>
+            </div>
+            <div id="status">Initializing...</div>
+        </div>
+        <div id="chart">
+            <div class="info-panel" id="ohlc-info" style="display: none;">
+                <div>O: <span id="info-open">-</span></div>
+                <div>H: <span id="info-high">-</span></div>
+                <div>L: <span id="info-low">-</span></div>
+                <div>C: <span id="info-close">-</span></div>
+                <div>V: <span id="info-volume">-</span></div>
+            </div>
+            <div class="metrics">
+                <h4 style="margin: 0 0 10px 0;">Virtual Scrolling Metrics</h4>
+                <div class="metric-row">
+                    <span class="metric-label">Window Size:</span>
+                    <span class="metric-value" id="window-size">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Total Data Range:</span>
+                    <span class="metric-value" id="data-range">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Window Range:</span>
+                    <span class="metric-value" id="window-range">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Memory (candles):</span>
+                    <span class="metric-value" id="memory-usage">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Fetch Count:</span>
+                    <span class="metric-value" id="fetch-count">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Last Fetch Time:</span>
+                    <span class="metric-value" id="fetch-time">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        // API configuration
+        const API_BASE = 'http://localhost:8080/api/v1';
+
+        // Virtual Data Manager
+        class VirtualDataManager {
+            constructor(options = {}) {
+                this.windowSize = options.windowSize || 2000;
+                this.bufferRatio = options.bufferRatio || 0.5;
+                this.apiBase = options.apiBase || API_BASE;
+                
+                this.window = [];
+                this.windowRange = { start: null, end: null };
+                this.isLoading = false;
+                this.fetchCount = 0;
+                
+                this.onDataUpdate = null;
+                this.onLoadingChange = null;
+                this.onMetricsUpdate = null;
+            }
+            
+            async updateViewport(visibleRange, symbol, timeframe) {
+                if (!visibleRange || !visibleRange.from || !visibleRange.to) return;
+                
+                const viewStart = new Date(visibleRange.from * 1000);
+                const viewEnd = new Date(visibleRange.to * 1000);
+                
+                const viewDuration = viewEnd - viewStart;
+                const bufferMs = viewDuration * this.bufferRatio;
+                const bufferStart = new Date(viewStart.getTime() - bufferMs);
+                const bufferEnd = new Date(viewEnd.getTime() + bufferMs);
+                
+                console.log('Viewport update:', {
+                    visible: `${viewStart.toISOString()} to ${viewEnd.toISOString()}`,
+                    buffer: `${bufferStart.toISOString()} to ${bufferEnd.toISOString()}`,
+                    currentWindow: this.window.length
+                });
+                
+                if (this._needsDataFetch(bufferStart, bufferEnd)) {
+                    await this._fetchDataForRange(bufferStart, bufferEnd, symbol, timeframe);
+                }
+                
+                this._trimWindow(viewStart, viewEnd);
+                this._updateMetrics();
+            }
+            
+            _needsDataFetch(start, end) {
+                if (!this.windowRange.start || !this.windowRange.end) return true;
+                return start < this.windowRange.start || end > this.windowRange.end;
+            }
+            
+            async _fetchDataForRange(start, end, symbol, timeframe) {
+                if (this.isLoading) return;
+                
+                this.isLoading = true;
+                if (this.onLoadingChange) this.onLoadingChange(true);
+                
+                const fetchStart = performance.now();
+                
+                try {
+                    // For now, always fetch 1m data and aggregate on frontend
+                    const params = new URLSearchParams({
+                        symbol: symbol,
+                        tf: '1m',
+                        resolution: '1m',
+                        start: start.toISOString(),
+                        end: end.toISOString()
+                    });
+                    
+                    const response = await fetch(`${this.apiBase}/candles/lazy?${params}`);
+                    
+                    if (response.status === 202) {
+                        console.log('Data being fetched from Dukascopy, retrying...');
+                        setTimeout(() => this._fetchDataForRange(start, end, symbol, timeframe), 3000);
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.candles && data.candles.length > 0) {
+                        // Aggregate candles based on timeframe
+                        const aggregatedCandles = this._aggregateCandles(data.candles, timeframe);
+                        this._mergeCandles(aggregatedCandles);
+                        
+                        if (!this.windowRange.start || start < this.windowRange.start) {
+                            this.windowRange.start = start;
+                        }
+                        if (!this.windowRange.end || end > this.windowRange.end) {
+                            this.windowRange.end = end;
+                        }
+                        
+                        this.fetchCount++;
+                        const fetchTime = performance.now() - fetchStart;
+                        document.getElementById('fetch-time').textContent = `${fetchTime.toFixed(0)}ms`;
+                        
+                        if (this.onDataUpdate) {
+                            this.onDataUpdate(this.getChartData(), this.window);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                } finally {
+                    this.isLoading = false;
+                    if (this.onLoadingChange) this.onLoadingChange(false);
+                }
+            }
+            
+            _aggregateCandles(candles, timeframe) {
+                if (timeframe === '1m') return candles;
+                
+                const timeframeMinutes = {
+                    '5m': 5,
+                    '15m': 15,
+                    '30m': 30,
+                    '1h': 60,
+                    '4h': 240,
+                    '1d': 1440
+                }[timeframe] || 60;
+                
+                const aggregated = new Map();
+                
+                candles.forEach(candle => {
+                    const date = new Date(candle.timestamp);
+                    const periodStart = new Date(date);
+                    
+                    // Round down to timeframe period
+                    if (timeframe === '1d') {
+                        periodStart.setUTCHours(0, 0, 0, 0);
+                    } else {
+                        const minutes = Math.floor(date.getUTCMinutes() / timeframeMinutes) * timeframeMinutes;
+                        periodStart.setUTCMinutes(minutes, 0, 0);
+                    }
+                    
+                    const key = periodStart.toISOString();
+                    
+                    if (!aggregated.has(key)) {
+                        aggregated.set(key, {
+                            timestamp: key,
+                            open: candle.open,
+                            high: candle.high,
+                            low: candle.low,
+                            close: candle.close,
+                            volume: candle.volume
+                        });
+                    } else {
+                        const agg = aggregated.get(key);
+                        agg.high = Math.max(agg.high, candle.high);
+                        agg.low = Math.min(agg.low, candle.low);
+                        agg.close = candle.close;
+                        agg.volume += candle.volume;
+                    }
+                });
+                
+                return Array.from(aggregated.values());
+            }
+            
+            _mergeCandles(newCandles) {
+                const before = this.window.length;
+                const candleMap = new Map();
+                
+                this.window.forEach(candle => candleMap.set(candle.timestamp, candle));
+                newCandles.forEach(candle => candleMap.set(candle.timestamp, candle));
+                
+                this.window = Array.from(candleMap.values())
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                console.log(`Merged candles: ${before} -> ${this.window.length} (added ${this.window.length - before})`);
+            }
+            
+            _trimWindow(viewStart, viewEnd) {
+                if (this.window.length <= this.windowSize) return;
+                
+                const before = this.window.length;
+                const viewCenter = new Date((viewStart.getTime() + viewEnd.getTime()) / 2);
+                
+                const sortedByDistance = this.window.map(candle => ({
+                    candle,
+                    distance: Math.abs(new Date(candle.timestamp) - viewCenter)
+                })).sort((a, b) => a.distance - b.distance);
+                
+                this.window = sortedByDistance
+                    .slice(0, this.windowSize)
+                    .map(item => item.candle)
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                if (this.window.length > 0) {
+                    this.windowRange.start = new Date(this.window[0].timestamp);
+                    this.windowRange.end = new Date(this.window[this.window.length - 1].timestamp);
+                }
+                
+                console.log(`Trimmed window: ${before} -> ${this.window.length} (removed ${before - this.window.length})`);
+            }
+            
+            _updateMetrics() {
+                document.getElementById('window-size').textContent = this.window.length;
+                document.getElementById('memory-usage').textContent = `${this.window.length} / ${this.windowSize}`;
+                document.getElementById('fetch-count').textContent = this.fetchCount;
+                
+                if (this.windowRange.start && this.windowRange.end) {
+                    const formatDate = (date) => date.toISOString().split('T')[0];
+                    document.getElementById('window-range').textContent = 
+                        `${formatDate(this.windowRange.start)} to ${formatDate(this.windowRange.end)}`;
+                }
+            }
+            
+            getChartData() {
+                return this.window.map(candle => ({
+                    time: new Date(candle.timestamp).getTime() / 1000,
+                    open: parseFloat(candle.open),
+                    high: parseFloat(candle.high),
+                    low: parseFloat(candle.low),
+                    close: parseFloat(candle.close),
+                }));
+            }
+            
+            clear() {
+                this.window = [];
+                this.windowRange = { start: null, end: null };
+                this.fetchCount = 0;
+            }
+        }
+
+        // Chart instance
+        let chart = null;
+        let candleSeries = null;
+        let dataManager = null;
+
+        // Initialize chart
+        function initChart() {
+            const chartContainer = document.getElementById('chart');
+            
+            chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.clientWidth,
+                height: chartContainer.clientHeight,
+                layout: {
+                    background: { color: '#0a0a0a' },
+                    textColor: '#d9d9d9',
+                },
+                grid: {
+                    vertLines: { color: '#1a1a1a' },
+                    horzLines: { color: '#1a1a1a' },
+                },
+                timeScale: {
+                    borderColor: '#3a3a3a',
+                    timeVisible: true,
+                    secondsVisible: false,
+                },
+                rightPriceScale: {
+                    borderColor: '#3a3a3a',
+                }
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                borderVisible: false,
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350',
+            });
+
+            // Initialize data manager
+            dataManager = new VirtualDataManager({
+                windowSize: 2000,
+                bufferRatio: 0.5
+            });
+            
+            // Set up callbacks
+            dataManager.onDataUpdate = (chartData, rawData) => {
+                candleSeries.setData(chartData);
+                window.candleData = rawData;
+                
+                const status = document.getElementById('status');
+                status.textContent = `${document.getElementById('symbol').value} - ${chartData.length} candles (virtual window)`;
+                status.className = '';
+            };
+            
+            dataManager.onLoadingChange = (isLoading) => {
+                const status = document.getElementById('status');
+                if (isLoading) {
+                    status.textContent = 'Loading virtual window...';
+                    status.className = 'loading';
+                }
+            };
+
+            // Track viewport changes
+            let viewportTimer = null;
+            
+            chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                if (viewportTimer) clearTimeout(viewportTimer);
+                
+                viewportTimer = setTimeout(async () => {
+                    const timeRange = chart.timeScale().getVisibleRange();
+                    if (!timeRange || !timeRange.from || !timeRange.to) return;
+                    
+                    const symbol = document.getElementById('symbol').value;
+                    const timeframe = document.getElementById('timeframe').value;
+                    
+                    await dataManager.updateViewport(timeRange, symbol, timeframe);
+                }, 300);
+            });
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                chart.applyOptions({
+                    width: chartContainer.clientWidth,
+                    height: chartContainer.clientHeight,
+                });
+            });
+
+            // Track crosshair for OHLCV
+            chart.subscribeCrosshairMove((param) => {
+                if (!param || !param.time || !param.seriesData || !window.candleData) return;
+                
+                const data = param.seriesData.get(candleSeries);
+                if (!data) return;
+                
+                const timestamp = new Date(param.time * 1000).toISOString();
+                const candle = window.candleData.find(c => {
+                    const candleTime = new Date(c.timestamp).toISOString();
+                    return candleTime.startsWith(timestamp.substring(0, 19));
+                });
+                
+                document.getElementById('info-open').textContent = data.open.toFixed(5);
+                document.getElementById('info-high').textContent = data.high.toFixed(5);
+                document.getElementById('info-low').textContent = data.low.toFixed(5);
+                document.getElementById('info-close').textContent = data.close.toFixed(5);
+                document.getElementById('info-volume').textContent = candle ? candle.volume.toFixed(2) : '-';
+                
+                const closeEl = document.getElementById('info-close');
+                closeEl.style.color = data.close >= data.open ? '#26a69a' : '#ef5350';
+            });
+        }
+
+        // Load initial data
+        async function loadData() {
+            const symbol = document.getElementById('symbol').value;
+            const timeframe = document.getElementById('timeframe').value;
+            const status = document.getElementById('status');
+            
+            try {
+                status.textContent = 'Initializing virtual scrolling...';
+                status.className = 'loading';
+                
+                dataManager.clear();
+                candleSeries.setData([]);
+                
+                // Start with September 2023 data where EURUSD begins
+                const start = new Date('2023-09-01');
+                const end = new Date('2023-09-07');
+                
+                const initialRange = {
+                    from: start.getTime() / 1000,
+                    to: end.getTime() / 1000
+                };
+                
+                await dataManager.updateViewport(initialRange, symbol, timeframe);
+                
+                // Show data range
+                document.getElementById('data-range').textContent = 'Sep 2023 - Mar 2024';
+                
+                setTimeout(() => {
+                    chart.timeScale().fitContent();
+                }, 500);
+                
+                document.getElementById('ohlc-info').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                status.textContent = `Error: ${error.message}`;
+                status.className = 'error';
+            }
+        }
+
+        // Test scrolling performance
+        function testScroll() {
+            const status = document.getElementById('status');
+            status.textContent = 'Testing scroll performance...';
+            status.className = 'loading';
+            
+            // Get current visible range
+            const currentRange = chart.timeScale().getVisibleRange();
+            if (!currentRange) return;
+            
+            // Calculate range width
+            const rangeWidth = currentRange.to - currentRange.from;
+            
+            // Scroll back in time by steps
+            let step = 0;
+            const maxSteps = 10;
+            const scrollInterval = setInterval(() => {
+                if (step >= maxSteps) {
+                    clearInterval(scrollInterval);
+                    status.textContent = 'Scroll test complete';
+                    status.className = '';
+                    return;
+                }
+                
+                // Move back by half the range width
+                const newFrom = currentRange.from - (rangeWidth * 0.5 * (step + 1));
+                const newTo = currentRange.to - (rangeWidth * 0.5 * (step + 1));
+                
+                chart.timeScale().setVisibleRange({
+                    from: newFrom,
+                    to: newTo
+                });
+                
+                step++;
+            }, 1000);
+        }
+
+        // Jump to data start
+        function jumpToStart() {
+            // Jump to September 2023 (start of EURUSD data)
+            const start = new Date('2023-09-01');
+            const end = new Date('2023-09-07');
+            
+            chart.timeScale().setVisibleRange({
+                from: start.getTime() / 1000,
+                to: end.getTime() / 1000
+            });
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            loadData();
+            
+            // Event listeners
+            document.getElementById('symbol').addEventListener('change', () => {
+                dataManager.clear();
+                loadData();
+            });
+            
+            document.getElementById('timeframe').addEventListener('change', () => {
+                dataManager.clear();
+                loadData();
+            });
+            
+            document.getElementById('fit-chart').addEventListener('click', () => {
+                chart.timeScale().fitContent();
+            });
+            
+            document.getElementById('test-scroll').addEventListener('click', testScroll);
+            document.getElementById('jump-to-start').addEventListener('click', jumpToStart);
+        });
+    </script>
+</body>
+</html>

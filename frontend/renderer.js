@@ -46,19 +46,19 @@ function initChart() {
       preserveBarSpacing: true,  // Keep bar spacing consistent
       lockVisibleTimeRangeOnResize: true,
       tickMarkFormatter: (time, tickMarkType, locale) => {
-        // Custom formatter to keep consistent tick marks
+        // Custom formatter to show UTC time
         const date = new Date(time * 1000);
         
-        // For intraday, show time
+        // For intraday, show UTC time
         if (tickMarkType < 4) {
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
+          const hours = date.getUTCHours().toString().padStart(2, '0');
+          const minutes = date.getUTCMinutes().toString().padStart(2, '0');
           return `${hours}:${minutes}`;
         }
         
-        // For daily and above, show date
+        // For daily and above, show UTC date
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${months[date.getMonth()]} ${date.getDate()}`;
+        return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
       },
     },
     rightPriceScale: {
@@ -68,7 +68,7 @@ function initChart() {
         bottom: 0.2,  // More space at bottom
       },
       mode: 0,  // Normal mode (not percentage)
-      autoScale: true,
+      autoScale: false,  // Don't auto-scale on data updates
     },
     handleScroll: {
       mouseWheel: true,
@@ -191,9 +191,23 @@ async function loadData() {
   try {
     status.textContent = 'Loading...';
     
-    // Start with a known good date range (January 2024)
-    const end = new Date('2024-01-25');
-    const start = new Date('2024-01-19');
+    // First, get the available data range for the symbol
+    const rangeResponse = await fetch(`${API_BASE}/data/range?symbol=${symbol}`);
+    if (!rangeResponse.ok) {
+      throw new Error(`Failed to get data range: ${rangeResponse.status}`);
+    }
+    
+    const dataRange = await rangeResponse.json();
+    console.log('Available data range:', dataRange);
+    
+    // Use the actual data range from the database
+    const dbStart = new Date(dataRange.start);
+    const dbEnd = new Date(dataRange.end);
+    
+    // Start with the most recent month of data
+    const end = new Date(dbEnd);
+    const start = new Date(dbEnd);
+    start.setMonth(start.getMonth() - 1);
     
     const params = new URLSearchParams({
       symbol: symbol,
@@ -241,9 +255,15 @@ async function loadData() {
     // Store the loaded data range
     window.currentDataRange = { start: new Date(start), end: new Date(end) };
     
-    // Only fit content on initial load, not when symbol/timeframe changes
-    if (!window.candleData || window.candleData.length === 0) {
+    // Fit content on initial load
+    if (!window.hasInitialLoad) {
+      window.hasInitialLoad = true;
+      chart.priceScale('right').applyOptions({ autoScale: true });
       chart.timeScale().fitContent();
+      // After fitting, disable auto-scale
+      setTimeout(() => {
+        chart.priceScale('right').applyOptions({ autoScale: false });
+      }, 100);
     }
     
     // Show OHLCV info
@@ -388,20 +408,12 @@ function mergeAndDisplayData(newCandles, symbol) {
   // Update chart
   candleSeries.setData(chartData);
   
-  // Restore viewport if it was saved
+  // Always restore viewport to prevent jumping
   if (currentViewport && currentViewport.from && currentViewport.to) {
-    try {
-      // Try to restore the exact visible range
+    // Force the time scale to stay exactly where it was
+    setTimeout(() => {
       chart.timeScale().setVisibleRange(currentViewport);
-      
-      // Also try to maintain the logical range (bar count)
-      if (visibleLogicalRange) {
-        chart.timeScale().setVisibleLogicalRange(visibleLogicalRange);
-      }
-    } catch (e) {
-      // If viewport restoration fails, just leave it as is
-      console.log('Could not restore viewport:', e);
-    }
+    }, 0);
   }
   
   status.textContent = `${symbol} - ${chartData.length} candles`;
@@ -429,4 +441,16 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('symbol').addEventListener('change', debouncedLoad);
   document.getElementById('timeframe').addEventListener('change', debouncedLoad);
+  
+  // Fit chart button
+  document.getElementById('fit-chart').addEventListener('click', () => {
+    // Temporarily enable auto-scale
+    chart.priceScale('right').applyOptions({ autoScale: true });
+    chart.timeScale().fitContent();
+    
+    // After a brief moment, disable auto-scale again
+    setTimeout(() => {
+      chart.priceScale('right').applyOptions({ autoScale: false });
+    }, 100);
+  });
 });

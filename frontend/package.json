@@ -1,16 +1,45 @@
 {
   "name": "sptrader-desktop",
   "version": "1.0.0",
-  "description": "SPtrader Desktop App",
+  "description": "SPtrader Desktop Trading Application",
   "main": "main.js",
+  "author": "SPtrader Team",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "start-no-sandbox": "electron . --no-sandbox"
+    "start-dev": "NODE_ENV=development electron .",
+    "start-no-sandbox": "electron . --no-sandbox",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
   },
   "devDependencies": {
-    "electron": "^30.0.0"
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
   },
   "dependencies": {
     "lightweight-charts": "^4.1.0"
+  },
+  "build": {
+    "appId": "com.sptrader.desktop",
+    "productName": "SPtrader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "index.html",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Finance"
+    }
   }
 }

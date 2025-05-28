@@ -127,6 +127,25 @@ func (h *Handlers) GetSymbols(c *gin.Context) {
 	})
 }
 
+// GetDataRange returns the available date range for a symbol
+func (h *Handlers) GetDataRange(c *gin.Context) {
+	symbol := c.Query("symbol")
+	if symbol == "" {
+		symbol = "EURUSD"
+	}
+
+	dataRange, err := h.dataService.GetDataRange(c.Request.Context(), symbol)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve data range",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dataRange)
+}
+
 // GetTimeframes returns supported timeframes
 func (h *Handlers) GetTimeframes(c *gin.Context) {
 	timeframes := []gin.H{

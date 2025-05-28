@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chart Diagnostics</title>
+    <style>
+        body { margin: 0; font-family: monospace; background: #0a0a0a; color: #d9d9d9; }
+        .container { display: flex; height: 100vh; }
+        #chart { flex: 1; }
+        #diagnostics { width: 400px; padding: 20px; background: #1a1a1a; overflow-y: auto; font-size: 12px; }
+        .metric { margin: 5px 0; padding: 5px; background: #2a2a2a; }
+        .error { color: #ef5350; }
+        .success { color: #26a69a; }
+        .warning { color: #ff9800; }
+        button { margin: 5px; padding: 5px 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="diagnostics">
+            <h3>Chart Diagnostics</h3>
+            <button onclick="loadData('1m')">Load 1m</button>
+            <button onclick="loadData('1h')">Load 1h</button>
+            <button onclick="loadData('1d')">Load 1d</button>
+            <button onclick="testViewport()">Test Viewport</button>
+            <button onclick="clear()">Clear</button>
+            <div id="log"></div>
+        </div>
+        <div id="chart"></div>
+    </div>
+
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        let chart, candleSeries;
+        let currentData = [];
+
+        function log(msg, type = 'info') {
+            const logEl = document.getElementById('log');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            logEl.innerHTML = `<div class="metric ${className}">${new Date().toLocaleTimeString()}: ${msg}</div>` + logEl.innerHTML;
+        }
+
+        // Initialize chart with minimal config
+        function initChart() {
+            const chartContainer = document.getElementById('chart');
+            
+            log('Initializing chart with MINIMAL config');
+            
+            chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.clientWidth,
+                height: chartContainer.clientHeight,
+                layout: {
+                    background: { color: '#0a0a0a' },
+                    textColor: '#d9d9d9',
+                },
+                // Minimal timeScale config - let's see defaults
+                timeScale: {
+                    borderColor: '#3a3a3a',
+                },
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+            });
+
+            // Monitor viewport changes
+            chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                const range = chart.timeScale().getVisibleRange();
+                if (range) {
+                    const visibleBars = chart.timeScale().getVisibleLogicalRange();
+                    if (visibleBars) {
+                        log(`Viewport: ${visibleBars.to - visibleBars.from} bars visible`, 'warning');
+                    }
+                }
+            });
+        }
+
+        async function loadData(timeframe) {
+            log(`Loading ${timeframe} data...`);
+            
+            try {
+                const response = await fetch(`http://localhost:8080/api/v1/candles?symbol=EURUSD&tf=${timeframe}&start=2024-01-01T00:00:00Z&end=2024-02-01T00:00:00Z`);
+                const data = await response.json();
+                
+                log(`API returned ${data.candles.length} candles`, 'success');
+                
+                // Convert to chart format
+                currentData = data.candles.map(c => ({
+                    time: new Date(c.timestamp).getTime() / 1000,
+                    open: parseFloat(c.open),
+                    high: parseFloat(c.high),
+                    low: parseFloat(c.low),
+                    close: parseFloat(c.close)
+                })).sort((a, b) => a.time - b.time);
+                
+                log(`Converted ${currentData.length} candles for chart`);
+                
+                // Set data
+                candleSeries.setData(currentData);
+                
+                // Get chart info after setting data
+                setTimeout(() => {
+                    const timeScale = chart.timeScale();
+                    const visibleRange = timeScale.getVisibleLogicalRange();
+                    const barSpacing = timeScale.options().barSpacing;
+                    const rightOffset = timeScale.options().rightOffset;
+                    
+                    log(`TimeScale options: barSpacing=${barSpacing}, rightOffset=${rightOffset}`);
+                    
+                    if (visibleRange) {
+                        log(`Visible bars: ${Math.floor(visibleRange.to - visibleRange.from)}`, 'warning');
+                    }
+                    
+                    // Try to get all options
+                    const options = timeScale.options();
+                    log(`All TimeScale options: ${JSON.stringify(options)}`);
+                }, 100);
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function testViewport() {
+            if (currentData.length === 0) {
+                log('No data loaded', 'error');
+                return;
+            }
+            
+            log('Testing viewport manipulation...');
+            
+            // Try to show all data
+            log('Calling fitContent()');
+            chart.timeScale().fitContent();
+            
+            setTimeout(() => {
+                const visibleRange = chart.timeScale().getVisibleLogicalRange();
+                if (visibleRange) {
+                    log(`After fitContent: ${Math.floor(visibleRange.to - visibleRange.from)} bars visible`, 'success');
+                }
+                
+                // Try to set a specific range
+                const firstTime = currentData[0].time;
+                const lastTime = currentData[currentData.length - 1].time;
+                
+                log(`Trying to set range from ${new Date(firstTime * 1000).toISOString()} to ${new Date(lastTime * 1000).toISOString()}`);
+                
+                try {
+                    chart.timeScale().setVisibleRange({
+                        from: firstTime,
+                        to: lastTime
+                    });
+                    
+                    setTimeout(() => {
+                        const newRange = chart.timeScale().getVisibleLogicalRange();
+                        if (newRange) {
+                            log(`After setVisibleRange: ${Math.floor(newRange.to - newRange.from)} bars visible`, 'success');
+                        }
+                    }, 100);
+                } catch (error) {
+                    log(`setVisibleRange error: ${error.message}`, 'error');
+                }
+                
+            }, 100);
+        }
+
+        function clear() {
+            currentData = [];
+            candleSeries.setData([]);
+            log('Chart cleared');
+        }
+
+        // Initialize on load
+        initChart();
+        log('Diagnostics ready');
+    </script>
+</body>
+</html>

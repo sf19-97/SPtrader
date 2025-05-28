@@ -1,5 +1,30 @@
 # SPtrader Session Changelog
 
+## Session: May 27, 2025
+
+### Frontend Chart Improvements ✅
+**What Changed:**
+- Disabled autoScale on price axis - prevents jumping when data loads
+- Added manual fit button (⊡) for user-controlled chart fitting
+- Improved viewport restoration to maintain position during data updates
+- Initial auto-fit on first load, then scales stay stable
+
+**Current State:**
+- Charts work like TradingView - scales controlled by user, not data
+- Lazy loading still works but doesn't disrupt viewing
+- 500ms debounce prevents excessive API calls
+- User has full control over zoom/pan
+
+**Known Issues:**
+- Still uses setData() which can cause brief flickers
+- 500ms delay before loading new data (chunky feeling)
+- Keeps all data in memory (no limit)
+
+**Next Steps:**
+- Implement virtual scrolling for smooth infinite data
+- Dynamic resolution switching based on zoom
+- Replace setData() with update() for incremental changes
+
 ## Session: May 25, 2025 23:07 UTC
 
 ### 1. Lazy Loading System Implementation ✅

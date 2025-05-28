@@ -15,6 +15,7 @@ class Colors:
     YELLOW = '\033[93m'
     BLUE = '\033[94m'
     MAGENTA = '\033[95m'
+    PURPLE = '\033[95m'  # Same as magenta
     CYAN = '\033[96m'
     WHITE = '\033[97m'
     GRAY = '\033[90m'
@@ -90,6 +91,7 @@ def show_menu():
         (f"{Colors.CYAN}[6]{Colors.RESET} API Health", "api"),
         (f"{Colors.GREEN}[7]{Colors.RESET} Database Stats", "db"),
         (f"{Colors.BLUE}[8]{Colors.RESET} Load Historical Data", "data"),
+        (f"{Colors.PURPLE}[9]{Colors.RESET} Data Gap Analysis", "gaps"),
         (f"{Colors.YELLOW}[M]{Colors.RESET} Monitor Mode", "monitor"),
         (f"{Colors.RED}[Q]{Colors.RESET} Quit", "quit"),
     ]
@@ -227,6 +229,13 @@ def execute_command(choice):
     
     elif choice == '8':
         load_historical_data()
+    
+    elif choice == '9':
+        print(Colors.PURPLE + "═" * width + Colors.RESET)
+        print(center_text(f"{Colors.BOLD}{Colors.PURPLE}DATA GAP ANALYSIS{Colors.RESET}", width + 20))
+        print(Colors.PURPLE + "═" * width + Colors.RESET)
+        print()
+        os.system('./sptrader db gaps --fill')
     
     print()
     print(Colors.DIM + "─" * width + Colors.RESET)
