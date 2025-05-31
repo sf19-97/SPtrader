@@ -8,6 +8,22 @@ let virtualDataManager = null;
 let forexSessionFilter = null;
 let smartScaling = null;
 
+// Very simple SmartScaling class definition
+class SmartScaling {
+  constructor(chart, series) {
+    this.chart = chart;
+    this.series = series;
+  }
+  
+  fitContent() {
+    if (this.chart && this.chart.priceScale) {
+      this.chart.priceScale('right').applyOptions({ 
+        autoScale: true 
+      });
+    }
+  }
+}
+
 // Import or include the ForexSessionFilter
 const ForexSessionFilter = window.ForexSessionFilter || {
   createContinuousView: (candles) => candles // Fallback if not loaded
@@ -170,10 +186,8 @@ function initChart() {
     lastValueVisible: true,
   });
   
-  // Initialize smart scaling with forex-optimized settings
+  // Initialize smart scaling
   smartScaling = new SmartScaling(chart, candleSeries);
-  smartScaling.applyForexMargins(); // Apply forex-optimized margins
-  console.log('SmartScaling initialized with forex settings');
 
   // Handle resize
   window.addEventListener('resize', () => {
@@ -615,30 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fit chart button
   document.getElementById('fit-chart').addEventListener('click', () => {
     // Use SmartScaling to fit content properly
-    console.log('Clicked fit chart button');
     smartScaling.fitContent();
     chart.timeScale().fitContent();
-    
-    // Visual feedback
-    const fitBtn = document.getElementById('fit-chart');
-    fitBtn.style.backgroundColor = '#4caf50';
-    setTimeout(() => {
-      fitBtn.style.backgroundColor = '#3a3a3a';
-    }, 300);
   });
-  
-  // Add smart scale toggle button
-  const headerContainer = document.getElementById('header');
-  const toggleScaleBtn = document.createElement('button');
-  toggleScaleBtn.id = 'toggle-scale';
-  toggleScaleBtn.textContent = 'Auto-Scale: ON';
-  toggleScaleBtn.style.marginLeft = '10px';
-  toggleScaleBtn.addEventListener('click', () => {
-    const isAutoEnabled = smartScaling.toggleAutoScale();
-    toggleScaleBtn.textContent = `Auto-Scale: ${isAutoEnabled ? 'ON' : 'OFF'}`;
-    toggleScaleBtn.style.backgroundColor = isAutoEnabled ? '#4caf50' : '#ef5350';
-  });
-  headerContainer.appendChild(toggleScaleBtn);
   
   // Add emergency button to force load all data
   const headerContainer = document.getElementById('header');

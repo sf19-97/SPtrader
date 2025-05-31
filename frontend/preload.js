@@ -12,8 +12,14 @@ contextBridge.exposeInMainWorld('api', {
   checkConnection: async () => {
     try {
       const response = await fetch('http://localhost:8080/api/v1/health');
-      return response.ok;
+      if (response.ok) {
+        console.log('API connection successful');
+        return true;
+      }
+      console.error('API health check failed:', response.status);
+      return false;
     } catch (error) {
+      console.error('API connection error:', error);
       return false;
     }
   },
