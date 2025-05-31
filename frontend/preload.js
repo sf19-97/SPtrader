@@ -1,5 +1,7 @@
 // Preload script for secure API communication
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
 // Expose a safe API for the renderer to communicate with the backend
 contextBridge.exposeInMainWorld('api', {
@@ -13,6 +15,17 @@ contextBridge.exposeInMainWorld('api', {
       return response.ok;
     } catch (error) {
       return false;
+    }
+  },
+  
+  // Get the forex session filter code
+  getForexSessionFilter: () => {
+    try {
+      const filterPath = path.join(__dirname, 'src/utils/forex_session_filter.js');
+      return fs.readFileSync(filterPath, 'utf8');
+    } catch (error) {
+      console.error('Error loading forex session filter:', error);
+      return null;
     }
   }
 });

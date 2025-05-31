@@ -1,10 +1,28 @@
 # SPtrader Project Status Report
-*Last Updated: May 31, 2025*
+*Last Updated: May 31, 2025 - 22:30 UTC*
 
 ## 🎯 Project Overview
 SPtrader is a high-performance forex trading platform with real-time data feeds, viewport-aware charting, and professional-grade infrastructure.
 
-## 🔄 Recent Updates (May 31, 2025)
+## 🔄 Recent Updates (May 31, 2025 - 22:30 UTC)
+
+### Fixed OHLC Candles to Use Price Instead of Bid ✅ (May 31, 2025 - 21:15 UTC)
+1. **Corrected Price Calculation in OHLC Candles**
+   - ✅ Discovered OHLC candles were using only 'bid' price instead of midpoint
+   - ✅ Created fixed_ohlc_generator.py to use 'price' field (average of bid/ask)
+   - ✅ Regenerated all timeframes from 1m to 1d with proper price data
+   - ✅ Preserved data for other symbols during regeneration
+   - ✅ Successfully regenerated 585,940 candles for EURUSD
+   - ✅ Charts now display accurate midpoint prices
+
+### Added Forex Session Filter for Continuous Charts ✅ (May 31, 2025 - 22:30 UTC)
+1. **TradingView-Style Chart Continuity**
+   - ✅ Created forex_session_filter.js to handle non-trading periods
+   - ✅ Implemented market hours filter (Sunday 22:00 - Friday 22:00 UTC)
+   - ✅ Holidays detection for 2023-2025 including Whit Monday (May 26, 2025)
+   - ✅ Continuous view generation without weekend/holiday gaps
+   - ✅ Integrated with renderer.js for seamless chart display
+   - ✅ Better UX with smoother visual representation
 
 ### Automated Data Updates ✅ (May 31, 2025)
 1. **Daily Data Ingestion System**
@@ -12,7 +30,7 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
    - ✅ Implemented daily_update.sh for scheduled updates
    - ✅ Added cron job scheduling documentation
    - ✅ Successfully loaded EURUSD data to May 30, 2025
-   - ✅ System now maintains ~20M ticks and 150K+ candles
+   - ✅ System now maintains ~40M ticks and 585K+ candles
 
 ### Critical Bug Fix: Historical Data Display ✅ (May 31, 2025)
 1. **Fixed Data Trimming Issue in Charts**
@@ -45,7 +63,7 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
    - ✅ Successfully loaded 74,575 ticks in 2 seconds!
 
 2. **Data Loading Results**
-   - Total ticks in database: 39,519,525
+   - Total ticks in database: 39,532,411
    - OHLC candles generated: 585,940 (1-minute bars)
    - Date range: March 1, 2023 - May 30, 2025
    - Performance: ~37,000 ticks/second via ILP
@@ -147,7 +165,13 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
 - ✅ **Connection pooling** - Efficient database connections
 - ✅ **Data source tracking** - Quality-aware data selection
 
-## ✅ Testing Complete (May 25, 2025 20:45 UTC)
+### 4. **Frontend Improvements**
+- ✅ **Fixed Candle Generation** - Using price instead of just bid for accurate charts
+- ✅ **Forex Session Filter** - Continuous charts without weekend/holiday gaps
+- ✅ **Virtual Data Management** - 2M candle window for full historical data
+- ✅ **Manual Fit Button** - User-controlled chart scaling
+
+## ✅ Testing Complete (May 31, 2025)
 
 ### 1. **API Endpoints** ✅
 ```bash
@@ -172,35 +196,32 @@ python3 dukascopy_to_ilp.py EURUSD 2024-01-22 2024-01-23
 
 # Verify data
 sptrader db query "SELECT count(*) FROM market_data_v2"
-# Result: 78,175 records
+# Result: 39,532,411 records
 ```
 
 ### 3. **OHLC Generation** ✅
 ```bash
-# Generate 1-minute candles from tick data
+# Generate all candles from tick data using price (not just bid)
 cd ~/SPtrader/scripts
-python3 simple_ohlc_generator.py EURUSD
+python3 fixed_ohlc_generator.py EURUSD
 
 # Verify OHLC data
 sptrader db query "SELECT count(*) FROM ohlc_1m_v2 WHERE symbol='EURUSD'"
 # Result: 585,940 one-minute candles covering Mar 2023 - May 2025
 ```
 
-### 4. **Cache Performance**
-```bash
-# Make repeated API calls and check cache hit rate
-sptrader api stats
-# Should see hit_rate increase after warm-up
-```
+### 4. **Forex Session Filter** ✅
+```javascript
+// Filter initialized in renderer.js
+forexSessionFilter = new ForexSessionFilter();
 
-### OHLC Candle Generation Improvement ✅ (May 31, 2025)
-1. **Rebuilt All Timeframe Candles**
-   - ✅ Created new `simple_ohlc_generator.py` script for reliable candle generation
-   - ✅ Generated 1-minute candles directly from all tick data
-   - ✅ Built all higher timeframes (5m→15m→30m→1h→4h→1d)
-   - ✅ Fixed issues with QuestDB's SAMPLE BY aggregation
-   - ✅ Generated 585,940 one-minute candles (full date range)
-   - ✅ Added `OHLC_GENERATION_README.md` documentation
+// Add specific holidays
+forexSessionFilter.addHoliday('2025-05-26'); // Whit Monday
+
+// Applied to chart data
+const continuousData = forexSessionFilter.createContinuousView(chartData);
+candleSeries.setData(continuousData);
+```
 
 ## 🚧 What's Not Implemented Yet
 
@@ -223,63 +244,40 @@ sptrader api stats
 - ❌ Comprehensive error handling
 - ❌ Deployment configuration (Docker/systemd)
 
-## 📋 Next Steps - Data-First Approach (Updated May 25, 2025)
+## 📋 Next Steps - Data-First Approach (Updated May 31, 2025)
 
-### 1. **Profile Data Performance** (Priority: CRITICAL)
-```bash
-# Start with small test data
-sptrader start
-cd ~/SPtrader/data_feeds
-python dukascopy_importer.py  # Load 1 week EURUSD only
-
-# Profile the data limits
-cd ~/SPtrader/tools
-python profile_data_limits.py
-
-# This generates:
-# - data_contract.json (performance boundaries)
-# - data_contract.ts (TypeScript interface)
-```
-
-### 2. **Enhance API Based on Profiling**
-Based on profiling results, enhance the FastAPI backend:
-- Add smart resolution selection
-- Implement viewport-aware queries
-- Add query explanation endpoint
-- Return metadata with responses
-
-Consider Go service if Python performance insufficient.
-
-### 3. **Implement Data-Aware Frontend**
-Using the data contract:
+### 1. **Improve Frontend Chart Integration** (Priority: HIGH)
 ```javascript
-// Frontend respects backend limits
-import { DATA_CONTRACT } from './data_contract';
-
-class ChartDataManager {
-  constructor() {
-    this.contract = DATA_CONTRACT;
-  }
-  
-  selectResolution(timeRange) {
-    // Use contract to pick optimal resolution
-  }
-}
+// Implement WebSocket for real-time updates
+// Replace setData() with update() for smoother transitions
+// Fully integrate forex session filter into virtual data manager
 ```
 
-### 4. **Test with Increasing Data Volumes**
-Gradually scale up:
-- 1 week → 1 month → 1 year
-- 1 pair → 5 pairs → all pairs
-- Monitor performance degradation
-- Adjust contracts as needed
+### 2. **Extend Forex Session Filter** (Priority: MEDIUM)
+- Add more granular session detection (Tokyo, London, NY)
+- Create session highlighting feature
+- Add custom holiday editor UI
+- Export/import holiday calendar
 
-### 5. **Production Deployment**
-Only after performance is proven:
-- Set up systemd services
-- Configure nginx reverse proxy
-- Add SSL certificates
-- Set up monitoring
+### 3. **Deployment Preparation** (Priority: MEDIUM)
+- Create Docker configuration
+- Add systemd service files
+- Create production settings
+- Setup monitor alerts
+
+### 4. **Fix Electron Sandbox Issues** (Priority: HIGH) ✅
+```bash
+# Run the sandbox fix script:
+scripts/fix_electron_sandbox.sh
+
+# Alternative - no sandbox mode:
+cd frontend && npm run start -- --no-sandbox
+```
+
+**New Script Created:**
+- Created `scripts/fix_electron_sandbox.sh` to automate sandbox permission fix
+- Script handles error checking and provides helpful messages
+- Run with `scripts/fix_electron_sandbox.sh`
 
 ## 🎮 Quick Commands Reference
 
@@ -293,25 +291,37 @@ sptrader logs -f        # Follow all logs
 sptrader db stats       # Check data counts
 sptrader optimize       # Run viewport optimizations
 
-# Troubleshooting
-sptrader status         # Check what's running
-sptrader api health     # Test API
-sptrader stop           # Stop everything
+# Data Loading
+cd ~/SPtrader/data_feeds
+python3 dukascopy_to_ilp.py EURUSD 2025-05-26 2025-05-26  # Load specific date
+python3 dukascopy_to_ilp_batched.py EURUSD 2025-05-01 2025-05-31  # Load month
+
+# OHLC Generation
+cd ~/SPtrader/scripts
+python3 fixed_ohlc_generator.py EURUSD  # Generate all timeframes with price
+
+# Electron App
+cd ~/SPtrader
+scripts/fix_electron_sandbox.sh  # Fix sandbox permissions
+cd frontend && npm run start      # Run the desktop app
 ```
 
 ## 📊 Current Architecture
 
 ```
 Data Flow:
-Oanda/Dukascopy → QuestDB → Go API → React
+Dukascopy → ILP → QuestDB → Go API → Electron Frontend
                      ↓
-              Viewport Tables
-              (Optimized queries)
+              OHLC Generation
+              (price-based)
+                     ↓
+             Forex Session Filter
+             (continuous charts)
 
 Ports:
-- QuestDB: 9000
+- QuestDB: 9000 (HTTP), 9009 (ILP)
 - Go API: 8080  
-- React: 5173 (when implemented)
+- Electron: Desktop App
 ```
 
 ## 💡 Tips for Development
@@ -335,11 +345,11 @@ Ports:
 
 ## 🐛 Known Issues
 
-1. **Frontend package.json is empty** - Needs proper React setup
+1. **Electron sandbox permissions** - Fixed with scripts/fix_electron_sandbox.sh
 2. **No authentication** - API is completely open
 3. **No data persistence config** - QuestDB data location not specified
 4. **Oanda feed failing** - market_data table missing data_source column (fix identified)
-5. **SPtrader-login.py terminal closing** - Need to decide on post-auth behavior
+5. **Holiday gaps** - Some markets open during regular holidays (e.g., New Years in Asia)
 
 ## 📈 Performance Targets
 
@@ -352,6 +362,8 @@ Ports:
 
 **Project Health: 🟢 Good**
 - Core infrastructure complete and tested
-- Data pipeline ready
-- Management tools working
-- Ready for data loading and frontend development
+- Data pipeline ready and optimized
+- OHLC generation fixed to use price not just bid
+- Forex session filter added for continuous charts
+- Full historical data properly displayed
+- Electron sandbox fix script created

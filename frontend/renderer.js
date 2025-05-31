@@ -5,6 +5,12 @@ const API_BASE = 'http://localhost:8080/api/v1';
 let chart = null;
 let candleSeries = null;
 let virtualDataManager = null;
+let forexSessionFilter = null;
+
+// Import or include the ForexSessionFilter
+const ForexSessionFilter = window.ForexSessionFilter || {
+  createContinuousView: (candles) => candles // Fallback if not loaded
+};
 
 // Initialize chart
 function initChart() {
@@ -419,6 +425,16 @@ function mergeAndDisplayData(newCandles, symbol) {
     }))
     .sort((a, b) => a.time - b.time);
   
+  // Apply forex session filter to create continuous view without gaps
+  if (forexSessionFilter) {
+    // Use the forex session filter to create a continuous view
+    const continuousData = forexSessionFilter.createContinuousView(chartData);
+    console.log(`Filtered ${chartData.length} candles to ${continuousData.length} trading candles`);
+    chartData = continuousData;
+  } else {
+    console.log('Forex session filter not loaded, showing data with gaps');
+  }
+  
   // Update chart
   candleSeries.setData(chartData);
   
@@ -540,6 +556,16 @@ async function forceLoadAllData() {
     // Update chart directly (bypass virtual data manager)
     candleSeries.setData(chartData);
     
+    // Apply forex session filter if available
+    if (forexSessionFilter) {
+      const continuousData = forexSessionFilter.createContinuousView(chartData);
+      console.log(`Emergency mode: Filtered ${chartData.length} candles to ${continuousData.length} trading candles`);
+      chartData = continuousData;
+    }
+    
+    // Update chart
+    candleSeries.setData(chartData);
+    
     // Set the visible range and fit content
     chart.timeScale().fitContent();
     
@@ -553,6 +579,18 @@ async function forceLoadAllData() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize the forex session filter
+  try {
+    // Create the forex session filter instance
+    forexSessionFilter = new ForexSessionFilter();
+    console.log('Forex session filter initialized');
+    
+    // Add custom holidays as needed
+    forexSessionFilter.addHoliday('2025-05-26'); // Whit Monday
+  } catch (e) {
+    console.error('Failed to initialize forex session filter:', e);
+  }
+  
   initChart();
   loadData();
   

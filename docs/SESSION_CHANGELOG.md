@@ -1,6 +1,53 @@
 # SPtrader Session Changelog
 
-## Session: May 31, 2025
+## Session: May 31, 2025 - Updated (22:30 UTC)
+
+### Fixed OHLC Candles to Use Price Instead of Just Bid ✅
+**🔎 Problem Analysis:**
+- Discovered OHLC candles were being generated using only the 'bid' price
+- This didn't accurately represent the midpoint price (average of bid/ask)
+- Affected accuracy of all timeframe charts
+
+**🛠️ Changes Made:**
+- Created fixed_ohlc_generator.py script that uses 'price' field instead of 'bid'
+- Price field represents the average of bid and ask (midpoint price)
+- Regenerated all timeframes with proper price data
+- Made script handle other symbols' data preservation during regeneration
+
+**📈 Results:**
+- Successfully regenerated 585,940 one-minute candles using price data
+- All higher timeframes rebuilt with correct midpoint prices:
+- 5m: 117,802 candles
+- 15m: 39,279 candles
+- 30m: 19,641 candles
+- 1h: 9,821 candles
+- 4h: 2,676 candles
+- 1d: 667 candles
+
+### Added Forex Session Filter for Continuous Charts ✅
+**🔎 Problem Analysis:**
+- Charts showed gaps during weekends and holidays (e.g., May 26, 2025 - Whit Monday)
+- This created visual discontinuities and made analysis difficult
+- The UI jumped from May 26 00:00 to May 27 00:00, skipping non-trading periods
+
+**🛠️ Changes Made:**
+- Created forex_session_filter.js utility to handle non-trading periods
+- Implemented market hour rules (Sunday 22:00 - Friday 22:00 UTC)
+- Added holiday detection for 2023-2025
+- Created continuous view generation that eliminates gaps
+- Integrated with renderer.js for chart display
+- Created fix_electron_sandbox.sh to solve Electron permissions issue
+- Successfully applied SUID permissions to chrome-sandbox
+- Added unit test for forex session filter functionality
+
+**📈 Results:**
+- Charts now display as continuous without gaps during weekends/holidays
+- Candles connect naturally between trading sessions
+- Technical analysis can be performed without weekend gaps
+- Custom TradingView-like behavior for forex markets
+- Better UX with smoother visual representation
+- Electron sandbox permissions fixed and working
+- Validated forex session filter correctly identifies holidays like Whit Monday
 
 ### Rebuilt OHLC Candles for Full Historical Data Range ✅
 **🔎 Problem Analysis:**
