@@ -1,5 +1,5 @@
 /**
- * SmartScaling.js
+ * SmartScaling.js - Simplified Version
  * Advanced price scaling management for LightweightCharts
  * Created: May 31, 2025
  */
@@ -19,126 +19,61 @@ class SmartScaling {
             top: 0.2,    // 20% margin at top for forex volatility
             bottom: 0.1  // 10% margin at bottom
         };
-        
-        this.setupEventHandlers();
+        console.log('SmartScaling initialized!');
     }
     
     /**
-     * Set up event handlers for chart interactions
+     * Apply optimized scaling margins for forex
      */
-    setupEventHandlers() {
-        // Detect when user manually adjusts scale
-        this.chart.subscribeClick(param => {
-            if (param.point && param.point.y < 40) {
-                this.isManualScale = true;
-                console.log('Smart scaling: Manual scale mode activated');
-            }
-        });
-        
-        // Auto-scale when viewport changes (unless manual)
-        this.chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-            if (!this.isManualScale) {
-                this.autoScaleToVisible();
-            }
-        });
-        
-        // Double-click to reset to auto-scale
-        this.chart.subscribeDoubleClick(param => {
-            if (param.point && param.point.y < 40) {
-                this.resetAutoScale();
-                console.log('Smart scaling: Auto scale reset');
-            }
-        });
-    }
-    
-    /**
-     * Auto-scales the price axis to show all visible data
-     */
-    autoScaleToVisible() {
-        const timeRange = this.chart.timeScale().getVisibleRange();
-        if (!timeRange) return;
-        
-        // Get data from the series
-        const seriesData = this.series.data();
-        if (!seriesData || seriesData.length === 0) return;
-        
-        // Filter to visible data
-        const visibleData = seriesData.filter(candle => 
-            candle.time >= timeRange.from && candle.time <= timeRange.to
-        );
-        
-        if (visibleData.length === 0) return;
-        
-        // Find price range
-        let minPrice = Infinity;
-        let maxPrice = -Infinity;
-        
-        visibleData.forEach(candle => {
-            minPrice = Math.min(minPrice, candle.low);
-            maxPrice = Math.max(maxPrice, candle.high);
-        });
-        
-        // Add margins
-        const range = maxPrice - minPrice;
-        const topMargin = range * this.margins.top;
-        const bottomMargin = range * this.margins.bottom;
-        
-        // Apply custom scale with margins
+    applyForexMargins() {
+        // Apply ideal margins for forex
         this.chart.priceScale('right').applyOptions({
-            autoScale: false,
             scaleMargins: {
-                top: 0.1,
-                bottom: 0.1
+                top: this.margins.top,     // 20% margin at top
+                bottom: this.margins.bottom // 10% margin at bottom
             }
         });
-        
-        // Set the price range with margins
-        this.series.priceScale().applyOptions({
-            minValue: minPrice - bottomMargin,
-            maxValue: maxPrice + topMargin
-        });
-        
-        // Store the current range
-        this.lastVisibleRange = {
-            minPrice: minPrice - bottomMargin,
-            maxPrice: maxPrice + topMargin
-        };
+        console.log('Applied forex-optimized margins');
     }
     
     /**
-     * Resets to automatic scaling
+     * Enable auto-scaling with proper margins
      */
-    resetAutoScale() {
+    enableAutoScale() {
         this.isManualScale = false;
         this.chart.priceScale('right').applyOptions({ 
             autoScale: true,
             scaleMargins: {
-                top: this.margins.top / 2,
-                bottom: this.margins.bottom / 2
+                top: this.margins.top,
+                bottom: this.margins.bottom
             }
         });
+        console.log('Auto-scaling enabled with forex margins');
     }
     
     /**
-     * Lock the price scale to a specific range
-     * @param {number} minPrice - Minimum price
-     * @param {number} maxPrice - Maximum price
+     * Disable auto-scaling (manual mode)
      */
-    lockPriceRange(minPrice, maxPrice) {
+    disableAutoScale() {
         this.isManualScale = true;
         this.chart.priceScale('right').applyOptions({
-            autoScale: false,
+            autoScale: false
         });
-        
-        this.series.priceScale().applyOptions({
-            minValue: minPrice,
-            maxValue: maxPrice
-        });
-        
-        this.lastVisibleRange = {
-            minPrice,
-            maxPrice
-        };
+        console.log('Auto-scaling disabled (manual mode)');
+    }
+    
+    /**
+     * Toggle auto-scaling on/off
+     */
+    toggleAutoScale() {
+        const isAuto = this.chart.priceScale('right').options().autoScale;
+        if (isAuto) {
+            this.disableAutoScale();
+            return false;
+        } else {
+            this.enableAutoScale();
+            return true;
+        }
     }
     
     /**
@@ -149,23 +84,16 @@ class SmartScaling {
     setMargins(top, bottom) {
         this.margins.top = top;
         this.margins.bottom = bottom;
-        
-        // Apply to current view if in auto mode
-        if (!this.isManualScale) {
-            this.autoScaleToVisible();
-        }
+        this.applyForexMargins();
     }
     
     /**
      * Fit visible content within the price scale
      */
     fitContent() {
-        this.chart.priceScale('right').applyOptions({ autoScale: true });
-        
-        // Briefly allow auto-scaling, then apply our smart scaling
-        setTimeout(() => {
-            this.autoScaleToVisible();
-        }, 50);
+        // Enable auto-scale with proper margins
+        this.enableAutoScale();
+        console.log('Fitting content with optimized margins');
     }
 }
 
