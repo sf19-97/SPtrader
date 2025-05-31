@@ -6,6 +6,14 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
 
 ## 🔄 Recent Updates (May 31, 2025)
 
+### Automated Data Updates ✅ (May 31, 2025)
+1. **Daily Data Ingestion System**
+   - ✅ Created automated_data_loader.py for smart data updating
+   - ✅ Implemented daily_update.sh for scheduled updates
+   - ✅ Added cron job scheduling documentation
+   - ✅ Successfully loaded EURUSD data to May 30, 2025
+   - ✅ System now maintains ~20M ticks and 150K+ candles
+
 ### Critical Bug Fix: Historical Data Display ✅ (May 31, 2025)
 1. **Fixed Data Trimming Issue in Charts**
    - ✅ Identified critical bug in VirtualDataManager that limited chart to showing only recent data
@@ -37,9 +45,9 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
    - ✅ Successfully loaded 74,575 ticks in 2 seconds!
 
 2. **Data Loading Results**
-   - Total ticks in database: 78,175
-   - OHLC candles generated: 1,556 (1-minute bars)
-   - Date range: Jan 19-23, 2024
+   - Total ticks in database: 39,519,525
+   - OHLC candles generated: 585,940 (1-minute bars)
+   - Date range: March 1, 2023 - May 30, 2025
    - Performance: ~37,000 ticks/second via ILP
 
 3. **Python-Go Bridge**
@@ -169,13 +177,13 @@ sptrader db query "SELECT count(*) FROM market_data_v2"
 
 ### 3. **OHLC Generation** ✅
 ```bash
-# Generate OHLC from tick data
-cd ~/SPtrader/data_feeds
-python3 -c "from dukascopy_importer import DukascopyDownloader; d=DukascopyDownloader(); d.generate_ohlcv()"
+# Generate 1-minute candles from tick data
+cd ~/SPtrader/scripts
+python3 simple_ohlc_generator.py EURUSD
 
 # Verify OHLC data
-sptrader db query "SELECT count(*) FROM ohlc_1m_v2"
-# Result: 1,556 one-minute candles
+sptrader db query "SELECT count(*) FROM ohlc_1m_v2 WHERE symbol='EURUSD'"
+# Result: 585,940 one-minute candles covering Mar 2023 - May 2025
 ```
 
 ### 4. **Cache Performance**
@@ -184,6 +192,15 @@ sptrader db query "SELECT count(*) FROM ohlc_1m_v2"
 sptrader api stats
 # Should see hit_rate increase after warm-up
 ```
+
+### OHLC Candle Generation Improvement ✅ (May 31, 2025)
+1. **Rebuilt All Timeframe Candles**
+   - ✅ Created new `simple_ohlc_generator.py` script for reliable candle generation
+   - ✅ Generated 1-minute candles directly from all tick data
+   - ✅ Built all higher timeframes (5m→15m→30m→1h→4h→1d)
+   - ✅ Fixed issues with QuestDB's SAMPLE BY aggregation
+   - ✅ Generated 585,940 one-minute candles (full date range)
+   - ✅ Added `OHLC_GENERATION_README.md` documentation
 
 ## 🚧 What's Not Implemented Yet
 

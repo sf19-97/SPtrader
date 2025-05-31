@@ -2,6 +2,29 @@
 
 ## Session: May 31, 2025
 
+### Rebuilt OHLC Candles for Full Historical Data Range ✅
+**🔎 Problem Analysis:**
+- Discovered issues with OHLC candle generation for higher timeframes
+- Original build_all_timeframes.py script failed to generate 15m+ timeframes
+- QuestDB's SAMPLE BY feature had issues with chain-based aggregation
+- OHLC candles only covered partial date range (Sept 2023 - Mar 2024)
+
+**🛠️ Changes Made:**
+- Created new simple_ohlc_generator.py that builds timeframes directly from 1-minute data
+- Generated 1-minute candles directly from all tick data (Mar 2023 - May 2025)
+- Fixed issues with QuestDB's SAMPLE BY aggregation
+- Added OHLC_GENERATION_README.md with detailed documentation
+
+**📈 Results:**
+- Generated 585,940 one-minute candles spanning full date range
+- Successfully built all higher timeframes with proper date ranges
+- 5m: 117,802 candles
+- 15m: 39,279 candles
+- 30m: 19,641 candles
+- 1h: 9,821 candles
+- 4h: 2,676 candles
+- 1d: 667 candles
+
 ### Fixed Critical Historical Data Display Bug ✅
 **🔎 Problem Analysis:**
 - Identified that charts were only showing data from March 1, 2024 onwards, despite having data back to March 1, 2023

@@ -123,6 +123,11 @@ done
 
 ### 3. Generate OHLC Data
 ```bash
+# Generate all OHLC timeframes (recommended method)
+cd ~/SPtrader/scripts
+python3 simple_ohlc_generator.py EURUSD
+
+# Alternative method (legacy)
 python3 -c "
 from dukascopy_importer import DukascopyDownloader
 d = DukascopyDownloader()
