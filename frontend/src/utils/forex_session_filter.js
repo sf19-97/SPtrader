@@ -5,6 +5,7 @@
  * Creates continuous-looking charts by removing weekends and holidays.
  * 
  * Created: May 31, 2025
+ * Updated: May 31, 2025 - Added special handling for daily candles and Sunday market open
  */
 
 class ForexSessionFilter {
@@ -39,6 +40,12 @@ class ForexSessionFilter {
             '2025-12-25', // Christmas
             '2025-12-26', // Boxing Day
         ]);
+
+        // Keep track of candles we've processed for debugging
+        this.processedCandles = {
+            total: 0,
+            filtered: 0
+        };
     }
     
     /**
@@ -70,26 +77,77 @@ class ForexSessionFilter {
     }
     
     /**
+     * Special case for daily candles - preserve all trading days
+     * This method preserves Monday-Friday candles regardless of timestamp
+     * Also keeps Sunday candles when they represent the market open period
+     * @param {number} timestamp - Unix timestamp (seconds)
+     * @returns {boolean} - True if it's a trading day
+     */
+    isWeekday(timestamp) {
+        const date = new Date(timestamp * 1000);
+        const dayOfWeek = date.getUTCDay();
+        const hour = date.getUTCHours();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Check holidays first
+        if (this.holidays.has(dateStr)) {
+            return false;
+        }
+        
+        // Special case: Sunday with market open time
+        // Forex market opens on Sunday evening (~22:00 UTC)
+        if (dayOfWeek === 0 && hour >= this.marketOpen.hour) {
+            return true;
+        }
+        
+        // Keep weekdays (Monday-Friday)
+        return dayOfWeek > 0 && dayOfWeek < 6;
+    }
+    
+    /**
      * Filter out candles during non-trading periods
      * @param {Array} candles - Array of candle objects with time property
+     * @param {boolean} isDaily - Whether these are daily candles
      * @returns {Array} - Filtered candles
      */
-    filterCandles(candles) {
-        return candles.filter(candle => this.isMarketOpen(candle.time));
+    filterCandles(candles, isDaily = false) {
+        this.processedCandles.total = candles.length;
+        
+        // For daily candles, use weekday filter
+        // For intraday candles, use market hours filter
+        const filteredCandles = candles.filter(candle => 
+            isDaily ? this.isWeekday(candle.time) : this.isMarketOpen(candle.time)
+        );
+        
+        this.processedCandles.filtered = candles.length - filteredCandles.length;
+        console.log(`Filtered ${this.processedCandles.filtered} candles out of ${this.processedCandles.total}`);
+        
+        return filteredCandles;
     }
     
     /**
      * Create a continuous view by eliminating gaps in the time series
+     * Matches TradingView's behavior for forex charts
      * @param {Array} candles - Array of candle objects
+     * @param {string} timeframe - Timeframe code (1m, 5m, ..., 1d)
      * @returns {Array} - Continuous candles with adjusted timestamps
      */
-    createContinuousView(candles) {
+    createContinuousView(candles, timeframe = null) {
         if (!candles || candles.length === 0) {
             return [];
         }
         
-        // First filter out non-trading periods
-        const filtered = this.filterCandles(candles);
+        // Determine if these are daily candles
+        const isDaily = timeframe === '1d' || this.guessTimeframe(this.detectInterval(candles)) === '1d';
+        
+        // Reset counters
+        this.processedCandles = {
+            total: 0,
+            filtered: 0
+        };
+        
+        // Filter out non-trading periods
+        const filtered = this.filterCandles(candles, isDaily);
         if (filtered.length === 0) {
             return [];
         }
@@ -97,23 +155,59 @@ class ForexSessionFilter {
         // Detect the interval between candles
         const interval = this.detectInterval(filtered);
         
-        // Create continuous timeline
+        // Create TradingView-style continuous timeline
         const continuous = [];
-        let expectedTime = filtered[0].time;
         
-        for (let i = 0; i < filtered.length; i++) {
-            const candle = { ...filtered[i] };
+        // For hours/minutes timeframes, use true continuous view with exact TradingView behavior
+        if (!isDaily && timeframe !== '1d' && interval < 86400) { // Less than daily timeframes
+            let lastTradingDay = null;
+            let expectedTime = filtered[0].time;
             
-            // Save original time for reference
-            candle.originalTime = candle.time;
+            for (let i = 0; i < filtered.length; i++) {
+                const candle = { ...filtered[i] };
+                const candleDate = new Date(candle.time * 1000);
+                const candleDay = candleDate.getUTCDay();
+                
+                // Handle weekend jumps like TradingView
+                if (lastTradingDay === 5 && candleDay === 0) {
+                    // Jump from Friday to Sunday (maintain exact times)
+                    // This skips Saturday completely while maintaining a continuous series
+                    // TradingView shows the last Friday candle connected directly to the first Sunday candle
+                    expectedTime = candle.time - interval;
+                }
+                
+                // Save original time for reference
+                candle.originalTime = candle.time;
+                
+                // Set the continuous time - preserves exact trading times
+                candle.time = expectedTime;
+                
+                // Update expected time for next candle
+                expectedTime += interval;
+                
+                // Update last trading day
+                lastTradingDay = candleDay;
+                
+                continuous.push(candle);
+            }
+        } else {
+            // For daily timeframes, keep original behavior
+            let expectedTime = filtered[0].time;
             
-            // Set the continuous time
-            candle.time = expectedTime;
-            
-            // Update expected time for next candle
-            expectedTime += interval;
-            
-            continuous.push(candle);
+            for (let i = 0; i < filtered.length; i++) {
+                const candle = { ...filtered[i] };
+                
+                // Save original time for reference
+                candle.originalTime = candle.time;
+                
+                // Set the continuous time
+                candle.time = expectedTime;
+                
+                // Update expected time for next candle
+                expectedTime += interval;
+                
+                continuous.push(candle);
+            }
         }
         
         return continuous;
