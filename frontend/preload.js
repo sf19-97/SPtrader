@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   // Helper to check if API is available
   checkConnection: async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/health');
+      const response = await fetch('http://localhost:8080/api/v1/health');
       return response.ok;
     } catch (error) {
       return false;
