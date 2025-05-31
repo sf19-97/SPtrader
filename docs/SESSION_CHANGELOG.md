@@ -1,6 +1,6 @@
 # SPtrader Session Changelog
 
-## Session: May 31, 2025 - Updated (22:30 UTC)
+## Session: May 31, 2025 - Updated (23:15 UTC)
 
 ### Fixed OHLC Candles to Use Price Instead of Just Bid ✅
 **🔎 Problem Analysis:**
@@ -23,6 +23,27 @@
 - 1h: 9,821 candles
 - 4h: 2,676 candles
 - 1d: 667 candles
+
+### Improved Chart Auto-Scaling for Better UX ✅
+**🔎 Problem Analysis:**
+- Charts had issues with auto-scaling being disabled by default
+- New data would appear squished or cut off at edge of chart
+- Manual scaling was required frequently
+- Poor user experience when scrolling through data
+
+**🛠️ Changes Made:**
+- Created SmartScaling.js utility for intelligent price scaling
+- Implemented TradingView-like auto-scaling behavior
+- Added detection of manual scaling actions
+- Optimized scaling margins for forex volatility (20% top, 10% bottom)
+- Created test page to verify behavior
+
+**📈 Results:**
+- Charts now maintain optimal price range automatically
+- Price scale adjusts dynamically as user scrolls through data
+- Manual scaling still available when needed
+- Better UX with no jarring jumps when loading data
+- Improved professional appearance similar to TradingView
 
 ### Added Forex Session Filter for Continuous Charts ✅
 **🔎 Problem Analysis:**

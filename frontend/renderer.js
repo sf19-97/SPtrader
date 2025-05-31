@@ -6,6 +6,7 @@ let chart = null;
 let candleSeries = null;
 let virtualDataManager = null;
 let forexSessionFilter = null;
+let smartScaling = null;
 
 // Import or include the ForexSessionFilter
 const ForexSessionFilter = window.ForexSessionFilter || {
@@ -130,10 +131,10 @@ function initChart() {
       borderColor: '#3a3a3a',
       scaleMargins: {
         top: 0.2,    // More space at top
-        bottom: 0.2,  // More space at bottom
+        bottom: 0.1,  // More space at bottom
       },
       mode: 0,  // Normal mode (not percentage)
-      autoScale: false,  // Don't auto-scale on data updates
+      autoScale: true,  // Enable auto-scaling for better UX
     },
     handleScroll: {
       mouseWheel: true,
@@ -167,6 +168,9 @@ function initChart() {
     priceLineVisible: false,
     lastValueVisible: true,
   });
+  
+  // Initialize smart scaling
+  smartScaling = new SmartScaling(chart, candleSeries);
 
   // Handle resize
   window.addEventListener('resize', () => {
@@ -274,13 +278,9 @@ async function loadData() {
       to: endTime
     });
     
-    // Fit content on initial load
-    chart.priceScale('right').applyOptions({ autoScale: true });
+    // Fit content on initial load using SmartScaling
+    smartScaling.fitContent();
     chart.timeScale().fitContent();
-    // After fitting, disable auto-scale
-    setTimeout(() => {
-      chart.priceScale('right').applyOptions({ autoScale: false });
-    }, 100);
     
     // Show OHLCV info
     document.getElementById('ohlc-info').style.display = 'block';
@@ -611,14 +611,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Fit chart button
   document.getElementById('fit-chart').addEventListener('click', () => {
-    // Temporarily enable auto-scale
-    chart.priceScale('right').applyOptions({ autoScale: true });
+    // Use SmartScaling to fit content properly
+    smartScaling.fitContent();
     chart.timeScale().fitContent();
-    
-    // After a brief moment, disable auto-scale again
-    setTimeout(() => {
-      chart.priceScale('right').applyOptions({ autoScale: false });
-    }, 100);
   });
   
   // Add emergency button to force load all data

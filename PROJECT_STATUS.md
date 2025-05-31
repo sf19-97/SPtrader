@@ -1,10 +1,10 @@
 # SPtrader Project Status Report
-*Last Updated: May 31, 2025 - 22:30 UTC*
+*Last Updated: May 31, 2025 - 23:15 UTC*
 
 ## 🎯 Project Overview
 SPtrader is a high-performance forex trading platform with real-time data feeds, viewport-aware charting, and professional-grade infrastructure.
 
-## 🔄 Recent Updates (May 31, 2025 - 22:30 UTC)
+## 🔄 Recent Updates (May 31, 2025 - 23:15 UTC)
 
 ### Fixed OHLC Candles to Use Price Instead of Bid ✅ (May 31, 2025 - 21:15 UTC)
 1. **Corrected Price Calculation in OHLC Candles**
@@ -14,6 +14,15 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
    - ✅ Preserved data for other symbols during regeneration
    - ✅ Successfully regenerated 585,940 candles for EURUSD
    - ✅ Charts now display accurate midpoint prices
+
+### Improved Chart Auto-Scaling for Better UX ✅ (May 31, 2025 - 23:15 UTC)
+1. **TradingView-Like Chart Behavior**
+   - ✅ Created SmartScaling.js for intelligent price scaling
+   - ✅ Implemented viewport-aware scaling for visible candles
+   - ✅ Added manual override detection with auto/manual modes
+   - ✅ Optimized scaling margins for forex volatility
+   - ✅ Created test page to verify functionality
+   - ✅ Added comprehensive CHART_SCALING.md documentation
 
 ### Added Forex Session Filter for Continuous Charts ✅ (May 31, 2025 - 22:30 UTC)
 1. **TradingView-Style Chart Continuity**
@@ -169,6 +178,7 @@ SPtrader is a high-performance forex trading platform with real-time data feeds,
 - ✅ **Fixed Candle Generation** - Using price instead of just bid for accurate charts
 - ✅ **Forex Session Filter** - Continuous charts without weekend/holiday gaps
 - ✅ **Virtual Data Management** - 2M candle window for full historical data
+- ✅ **Smart Auto-Scaling** - TradingView-like dynamic price scaling
 - ✅ **Manual Fit Button** - User-controlled chart scaling
 
 ## ✅ Testing Complete (May 31, 2025)
@@ -304,6 +314,10 @@ python3 fixed_ohlc_generator.py EURUSD  # Generate all timeframes with price
 cd ~/SPtrader
 scripts/fix_electron_sandbox.sh  # Fix sandbox permissions
 cd frontend && npm run start      # Run the desktop app
+
+# Testing
+cd ~/SPtrader/frontend
+npm run start test_smart_scaling.html  # Test auto-scaling behavior
 ```
 
 ## 📊 Current Architecture
@@ -367,3 +381,4 @@ Ports:
 - Forex session filter added for continuous charts
 - Full historical data properly displayed
 - Electron sandbox fix script created
+- Smart auto-scaling for improved chart UX
