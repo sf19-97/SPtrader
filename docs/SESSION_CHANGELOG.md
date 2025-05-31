@@ -1,5 +1,25 @@
 # SPtrader Session Changelog
 
+## Session: May 31, 2025
+
+### Fixed Critical Historical Data Display Bug ✅
+**🔎 Problem Analysis:**
+- Identified that charts were only showing data from March 1, 2024 onwards, despite having data back to March 1, 2023
+- Root cause was in VirtualDataManager class which had a default window size of only 2,000 candles
+- This caused older historical data to be trimmed when loading the full range
+
+**🛠️ Changes Made:**
+- Increased VirtualDataManager window size from 2,000 to 2,000,000 candles
+- Modified the `applyWindow()` function to never trim historical data
+- Added warning comments to prevent regression
+- Created VIRTUAL_DATA_IMPORTANT.md with detailed documentation
+- Updated renderer.js initialization with warning comments
+
+**📈 Results:**
+- Charts now properly display all historical data back to March 2023
+- No performance degradation observed with increased data window size
+- Added safeguards to prevent future regressions
+
 ## Session: May 27, 2025
 
 ### Frontend Chart Improvements ✅

@@ -1,10 +1,19 @@
 # SPtrader Project Status Report
-*Last Updated: May 25, 2025 23:05 UTC*
+*Last Updated: May 31, 2025*
 
 ## 🎯 Project Overview
 SPtrader is a high-performance forex trading platform with real-time data feeds, viewport-aware charting, and professional-grade infrastructure.
 
-## 🔄 Recent Updates (May 25, 2025)
+## 🔄 Recent Updates (May 31, 2025)
+
+### Critical Bug Fix: Historical Data Display ✅ (May 31, 2025)
+1. **Fixed Data Trimming Issue in Charts**
+   - ✅ Identified critical bug in VirtualDataManager that limited chart to showing only recent data
+   - ✅ Fixed window size limitation (increased from 2,000 to 2,000,000 candles)
+   - ✅ Modified `applyWindow()` function to never trim historical data
+   - ✅ Added warning comments to prevent regression
+   - ✅ Created VIRTUAL_DATA_IMPORTANT.md with detailed explanation
+   - ✅ Now properly displaying all historical data back to March 2023
 
 ### Lazy Loading Data Management ✅ (23:05 UTC)
 1. **On-Demand Data Fetching**

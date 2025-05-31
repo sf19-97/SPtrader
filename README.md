@@ -1,5 +1,5 @@
 # SPtrader - High-Performance Forex Trading Platform (Go Edition)
-*Last Updated: May 25, 2025 23:08 UTC*
+*Last Updated: May 31, 2025*
 
 A professional forex trading platform with real-time data feeds, high-performance charting, and viewport-aware data streaming.
 
@@ -197,6 +197,7 @@ After `sptrader start`:
 - QuestDB needs ~5 seconds before accepting connections
 - Cache warms up after first few requests
 - Viewport tables significantly improve zoom performance
+- ⚠️ Do not modify VirtualDataManager window size - Critical for historical data display (see VIRTUAL_DATA_IMPORTANT.md)
 
 ## 📈 Next Steps - Data-First Approach
 
