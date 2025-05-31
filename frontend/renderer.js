@@ -4,6 +4,7 @@ const API_BASE = 'http://localhost:8080/api/v1';
 // Chart instance
 let chart = null;
 let candleSeries = null;
+let virtualDataManager = null;
 
 // Initialize chart
 function initChart() {
@@ -46,19 +47,77 @@ function initChart() {
       preserveBarSpacing: true,  // Keep bar spacing consistent
       lockVisibleTimeRangeOnResize: true,
       tickMarkFormatter: (time, tickMarkType, locale) => {
-        // Custom formatter to show UTC time
         const date = new Date(time * 1000);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // For intraday, show UTC time
-        if (tickMarkType < 4) {
-          const hours = date.getUTCHours().toString().padStart(2, '0');
-          const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+        // tickMarkType indicates the significance of the time point:
+        // 0 = year, 1 = month, 2 = day of month, 3 = day of week, 4 = hour, 5 = minute
+        
+        // Year tick
+        if (tickMarkType === 0) {
+          return date.getUTCFullYear().toString();
+        }
+        
+        // Month tick
+        if (tickMarkType === 1) {
+          const month = months[date.getUTCMonth()];
+          const year = date.getUTCFullYear().toString().slice(-2);
+          return `${month} '${year}`;
+        }
+        
+        // Day tick
+        if (tickMarkType === 2) {
+          const day = date.getUTCDate();
+          const month = months[date.getUTCMonth()];
+          const year = date.getUTCFullYear().toString().slice(-2);
+          
+          // Show year on January 1st
+          if (date.getUTCMonth() === 0 && day === 1) {
+            return `${day} ${month} '${year}`;
+          }
+          
+          // Show month and day on 1st of each month
+          if (day === 1) {
+            return `${day} ${month}`;
+          }
+          
+          // Otherwise just show day and month
+          return `${day} ${month}`;
+        }
+        
+        // Hour/minute ticks - check the current timeframe
+        const timeframe = document.getElementById('timeframe')?.value || '1h';
+        const hours = date.getUTCHours().toString().padStart(2, '0');
+        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+        
+        // For daily timeframe, always show dates
+        if (timeframe === '1d') {
+          const day = date.getUTCDate();
+          const month = months[date.getUTCMonth()];
+          return `${day} ${month}`;
+        }
+        
+        // For intraday timeframes
+        if (tickMarkType >= 3) {
+          // At midnight, show the date
+          if (hours === '00' && minutes === '00') {
+            const day = date.getUTCDate();
+            const month = months[date.getUTCMonth()];
+            const year = date.getUTCFullYear().toString().slice(-2);
+            
+            // Include year at significant dates
+            if (date.getUTCDate() === 1 || tickMarkType === 2) {
+              return `${day} ${month} '${year}`;
+            }
+            return `${day} ${month}`;
+          }
+          
+          // Otherwise show time
           return `${hours}:${minutes}`;
         }
         
-        // For daily and above, show UTC date
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
+        // Default format
+        return `${date.getUTCDate()} ${months[date.getUTCMonth()]}`;
       },
     },
     rightPriceScale: {
@@ -98,6 +157,9 @@ function initChart() {
       precision: 5,
       minMove: 0.00001,
     },
+    // Ensure gaps are handled properly
+    priceLineVisible: false,
+    lastValueVisible: true,
   });
 
   // Handle resize
@@ -110,19 +172,16 @@ function initChart() {
   
   // Track crosshair movement for OHLCV display
   chart.subscribeCrosshairMove((param) => {
-    if (!param || !param.time || !param.seriesData || !window.candleData) {
+    if (!param || !param.time || !param.seriesData || !virtualDataManager) {
       return;
     }
     
     const data = param.seriesData.get(candleSeries);
     if (!data) return;
     
-    // Find the matching candle from raw data for volume
-    const timestamp = new Date(param.time * 1000).toISOString();
-    const candle = window.candleData.find(c => {
-      const candleTime = new Date(c.timestamp).toISOString();
-      return candleTime.startsWith(timestamp.substring(0, 19));
-    });
+    // For virtual scrolling, we already have volume in the data
+    // since VirtualDataManager window contains the full candle data
+    const candle = { volume: 0 }; // Default if not found
     
     // Update OHLCV display
     document.getElementById('info-open').textContent = data.open.toFixed(5);
@@ -136,62 +195,45 @@ function initChart() {
     closeEl.style.color = data.close >= data.open ? '#26a69a' : '#ef5350';
   });
   
-  // Track viewport changes for dynamic data loading
+  // Initialize Virtual Data Manager
+  // ⚠️ CRITICAL: DO NOT REDUCE THIS VALUE! ⚠️
+  // The large window size (2M) is intentional to ensure we show ALL historical data.
+  // Reducing this value will cause older data (before March 2024) to be hidden.
+  virtualDataManager = new VirtualDataManager(2000000); // Keep 2 million candles in memory for full historical data
+  
+  // Track viewport changes with virtual scrolling
   let viewportTimer = null;
-  window.currentDataRange = { start: null, end: null };
   
   chart.timeScale().subscribeVisibleTimeRangeChange(() => {
     if (viewportTimer) clearTimeout(viewportTimer);
     
     viewportTimer = setTimeout(() => {
       const timeRange = chart.timeScale().getVisibleRange();
-      if (!timeRange || !timeRange.from || !timeRange.to) return;
+      if (!timeRange || !virtualDataManager) return;
       
-      const symbol = document.getElementById('symbol').value;
-      const timeframe = document.getElementById('timeframe').value;
-      const viewStart = new Date(timeRange.from * 1000);
-      const viewEnd = new Date(timeRange.to * 1000);
+      // Let VirtualDataManager handle the viewport update
+      virtualDataManager.updateViewport(timeRange);
       
-      console.log('=== VIEWPORT CHECK ===');
-      console.log('Visible range:', viewStart.toISOString(), 'to', viewEnd.toISOString());
-      
-      // Skip if we don't have data loaded yet
-      if (!window.currentDataRange.start || !window.currentDataRange.end) {
-        console.log('No data range set yet, skipping...');
-        return;
+      // Update status
+      const info = virtualDataManager.getInfo();
+      const status = document.getElementById('status');
+      if (status && info.windowSize > 0) {
+        status.textContent = `${virtualDataManager.symbol} - ${info.windowSize} candles in view (Virtual Scrolling)`;
       }
-      
-      // Add buffer to load data beyond visible range
-      const bufferMs = (viewEnd - viewStart) * 0.5; // 50% buffer on each side
-      const fetchStart = new Date(viewStart.getTime() - bufferMs);
-      const fetchEnd = new Date(viewEnd.getTime() + bufferMs);
-      
-      // Check if we need to fetch new data
-      const needsBackwardData = fetchStart < window.currentDataRange.start;
-      const needsForwardData = fetchEnd > window.currentDataRange.end;
-      
-      console.log('Current data:', window.currentDataRange.start.toISOString(), 'to', window.currentDataRange.end.toISOString());
-      console.log('Needs backward:', needsBackwardData, 'Needs forward:', needsForwardData);
-      
-      if (needsBackwardData || needsForwardData) {
-        console.log('Fetching new data...');
-        console.log('Fetch range:', fetchStart.toISOString(), 'to', fetchEnd.toISOString());
-        loadDataForRange(symbol, timeframe, fetchStart, fetchEnd);
-      }
-    }, 500); // Wait 500ms after scrolling stops
+    }, 300); // Reduced to 300ms for more responsive updates
   });
 }
 
-// Load chart data
+// Load chart data with full date range for all timeframes
 async function loadData() {
   const symbol = document.getElementById('symbol').value;
   const timeframe = document.getElementById('timeframe').value;
   const status = document.getElementById('status');
   
   try {
-    status.textContent = 'Loading...';
+    status.textContent = 'Loading data range...';
     
-    // First, get the available data range for the symbol
+    // Step 1: Get the complete available data range for this symbol
     const rangeResponse = await fetch(`${API_BASE}/data/range?symbol=${symbol}`);
     if (!rangeResponse.ok) {
       throw new Error(`Failed to get data range: ${rangeResponse.status}`);
@@ -200,74 +242,46 @@ async function loadData() {
     const dataRange = await rangeResponse.json();
     console.log('Available data range:', dataRange);
     
-    // Use the actual data range from the database
-    const dbStart = new Date(dataRange.start);
-    const dbEnd = new Date(dataRange.end);
+    // Step 2: Use the FULL date range - no filtering
+    const fullStart = new Date(dataRange.start);
+    const fullEnd = new Date(dataRange.end);
     
-    // Start with the most recent month of data
-    const end = new Date(dbEnd);
-    const start = new Date(dbEnd);
-    start.setMonth(start.getMonth() - 1);
+    console.log(`Loading FULL data range: ${fullStart.toISOString()} to ${fullEnd.toISOString()}`);
     
-    const params = new URLSearchParams({
-      symbol: symbol,
-      tf: timeframe,
-      resolution: timeframe,  // Force resolution to match timeframe
-      start: start.toISOString(),
-      end: end.toISOString()
+    // Step 3: Clear any existing data
+    if (virtualDataManager) {
+      virtualDataManager.clear();
+    }
+    
+    // Initialize virtual data manager with chart
+    virtualDataManager.init(chart, candleSeries, symbol, timeframe);
+    
+    // Step 4: Load all data into virtual data manager
+    await virtualDataManager.loadWindowData(fullStart, fullEnd, fullStart, fullEnd);
+    
+    // Step 5: Set the visible range to show ALL data
+    const startTime = fullStart.getTime() / 1000;
+    const endTime = fullEnd.getTime() / 1000;
+    
+    chart.timeScale().setVisibleRange({
+      from: startTime,
+      to: endTime
     });
     
-    const response = await fetch(`${API_BASE}/candles?${params}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data.candles || data.candles.length === 0) {
-      status.textContent = 'No data available';
-      candleSeries.setData([]);
-      return;
-    }
-    
-    // Convert data to chart format
-    const chartData = data.candles
-      .filter((candle, index, self) => {
-        // Remove duplicates based on timestamp
-        return index === self.findIndex(c => c.timestamp === candle.timestamp);
-      })
-      .map(candle => ({
-        time: new Date(candle.timestamp).getTime() / 1000,
-        open: parseFloat(candle.open),
-        high: parseFloat(candle.high),
-        low: parseFloat(candle.low),
-        close: parseFloat(candle.close),
-      }))
-      .sort((a, b) => a.time - b.time);
-    
-    candleSeries.setData(chartData);
-    status.textContent = `${symbol} - ${chartData.length} candles`;
-    
-    // Store raw candle data for OHLCV display
-    window.candleData = data.candles;
-    
-    // Store the loaded data range
-    window.currentDataRange = { start: new Date(start), end: new Date(end) };
-    
     // Fit content on initial load
-    if (!window.hasInitialLoad) {
-      window.hasInitialLoad = true;
-      chart.priceScale('right').applyOptions({ autoScale: true });
-      chart.timeScale().fitContent();
-      // After fitting, disable auto-scale
-      setTimeout(() => {
-        chart.priceScale('right').applyOptions({ autoScale: false });
-      }, 100);
-    }
+    chart.priceScale('right').applyOptions({ autoScale: true });
+    chart.timeScale().fitContent();
+    // After fitting, disable auto-scale
+    setTimeout(() => {
+      chart.priceScale('right').applyOptions({ autoScale: false });
+    }, 100);
     
     // Show OHLCV info
     document.getElementById('ohlc-info').style.display = 'block';
+    
+    // Update status
+    const info = virtualDataManager.getInfo();
+    status.textContent = `${symbol} - ${info.windowSize} candles in view (Virtual Scrolling)`;
     
   } catch (error) {
     console.error('Error loading data:', error);
@@ -422,6 +436,121 @@ function mergeAndDisplayData(newCandles, symbol) {
   document.getElementById('ohlc-info').style.display = 'block';
 }
 
+// Emergency fallback function to force loading ALL data
+async function forceLoadAllData() {
+  const symbol = document.getElementById('symbol').value;
+  const timeframe = document.getElementById('timeframe').value;
+  const status = document.getElementById('status');
+  
+  try {
+    status.textContent = 'EMERGENCY MODE: Loading ALL available data...';
+    
+    // Force start/end dates to cover all possible data
+    const forcedStart = new Date('2020-01-01T00:00:00.000Z'); // Way before your data starts
+    const forcedEnd = new Date(); // Current time
+    
+    console.log(`Forcing MAXIMUM date range: ${forcedStart.toISOString()} to ${forcedEnd.toISOString()}`);
+    
+    // Make direct request to ensure we get ALL data
+    const params = new URLSearchParams({
+      symbol: symbol,
+      tf: timeframe,
+      start: forcedStart.toISOString(),
+      end: forcedEnd.toISOString()
+    });
+    
+    // Try various endpoints until one works
+    let data = null;
+    let endpoint = '';
+    
+    // Try regular endpoint first
+    try {
+      endpoint = `${API_BASE}/candles?${params}`;
+      console.log(`Trying endpoint: ${endpoint}`);
+      const response = await fetch(endpoint);
+      
+      if (response.ok) {
+        data = await response.json();
+        if (data.candles && data.candles.length > 0) {
+          console.log(`Success with endpoint: ${endpoint}`);
+        } else {
+          data = null;
+        }
+      }
+    } catch (err) {
+      console.error(`Failed with endpoint: ${endpoint}`, err);
+    }
+    
+    // If that fails, try lazy endpoint
+    if (!data) {
+      try {
+        endpoint = `${API_BASE}/candles/lazy?${params}`;
+        console.log(`Trying endpoint: ${endpoint}`);
+        const response = await fetch(endpoint);
+        
+        if (response.ok) {
+          data = await response.json();
+          if (data.candles && data.candles.length > 0) {
+            console.log(`Success with endpoint: ${endpoint}`);
+          } else {
+            data = null;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed with endpoint: ${endpoint}`, err);
+      }
+    }
+    
+    // Last resort - try native endpoint
+    if (!data) {
+      try {
+        endpoint = `${API_BASE}/candles/native?${params}`;
+        console.log(`Trying endpoint: ${endpoint}`);
+        const response = await fetch(endpoint);
+        
+        if (response.ok) {
+          data = await response.json();
+          if (data.candles && data.candles.length > 0) {
+            console.log(`Success with endpoint: ${endpoint}`);
+          } else {
+            data = null;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed with endpoint: ${endpoint}`, err);
+      }
+    }
+    
+    if (!data || !data.candles || data.candles.length === 0) {
+      status.textContent = 'EMERGENCY MODE FAILED: No data available from any endpoint';
+      return;
+    }
+    
+    // Convert to chart format
+    const chartData = data.candles
+      .map(candle => ({
+        time: new Date(candle.timestamp).getTime() / 1000,
+        open: parseFloat(candle.open),
+        high: parseFloat(candle.high),
+        low: parseFloat(candle.low),
+        close: parseFloat(candle.close),
+      }))
+      .sort((a, b) => a.time - b.time);
+    
+    // Update chart directly (bypass virtual data manager)
+    candleSeries.setData(chartData);
+    
+    // Set the visible range and fit content
+    chart.timeScale().fitContent();
+    
+    status.textContent = `EMERGENCY MODE: ${symbol} ${timeframe} - Loaded ${chartData.length} candles directly`;
+    
+  } catch (error) {
+    console.error('EMERGENCY MODE ERROR:', error);
+    status.textContent = `EMERGENCY MODE FAILED: ${error.message}`;
+  }
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   initChart();
@@ -453,4 +582,20 @@ document.addEventListener('DOMContentLoaded', () => {
       chart.priceScale('right').applyOptions({ autoScale: false });
     }, 100);
   });
+  
+  // Add emergency button to force load all data
+  const headerContainer = document.getElementById('header');
+  const emergencyButton = document.createElement('button');
+  emergencyButton.id = 'force-load-all';
+  emergencyButton.textContent = 'EMERGENCY: Load ALL';
+  emergencyButton.style.backgroundColor = '#ff5555';
+  emergencyButton.style.color = 'white';
+  emergencyButton.style.fontWeight = 'bold';
+  emergencyButton.style.marginLeft = '10px';
+  
+  // Add the button to the header
+  headerContainer.appendChild(emergencyButton);
+  
+  // Add event listener
+  document.getElementById('force-load-all').addEventListener('click', forceLoadAllData);
 });
