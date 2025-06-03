@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Forex Chart Scaling Demo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+    .header {
+      background: #2a2a2a;
+      padding: 10px 20px;
+    }
+    .container {
+      width: 800px;
+      height: 400px;
+      margin: 20px auto;
+      border: 1px solid #3a3a3a;
+    }
+    .controls {
+      width: 800px;
+      margin: 0 auto;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    button {
+      padding: 5px 10px;
+      background: #3a3a3a;
+      color: white;
+      border: 1px solid #4a4a4a;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #4a4a4a;
+    }
+    .status {
+      width: 800px;
+      margin: 10px auto;
+      padding: 10px;
+      background: #2a2a2a;
+      border-radius: 4px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Forex Chart Scaling Demo</h2>
+  </div>
+  
+  <div class="container" id="chart"></div>
+  
+  <div class="controls">
+    <button id="auto-on">Auto-Scale ON</button>
+    <button id="auto-off">Auto-Scale OFF</button>
+    <button id="fit">Fit Chart</button>
+    <button id="zoom-in">Zoom In</button>
+    <button id="zoom-out">Zoom Out</button>
+  </div>
+  
+  <div class="status" id="status">Status: Loading chart...</div>
+
+  <script>
+  // Inline lightweight-charts code
+  (function() {
+    // Simple version of the charts library
+    window.LightweightCharts = {
+      createChart: function(container, options) {
+        // Create a canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = options.width || container.clientWidth;
+        canvas.height = options.height || container.clientHeight;
+        container.appendChild(canvas);
+        
+        // Get 2D context
+        const ctx = canvas.getContext('2d');
+        
+        // Chart state
+        let autoScale = options.rightPriceScale?.autoScale || false;
+        let data = [];
+        let timeRange = { from: 0, to: 0 };
+        let priceRange = { from: 0, to: 0 };
+        let listeners = {
+          click: [],
+          doubleClick: [],
+          visibleTimeRangeChange: []
+        };
+        
+        // Initialize with background
+        ctx.fillStyle = options.layout?.background?.color || '#131722';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw function
+        function draw() {
+          // Clear canvas
+          ctx.fillStyle = options.layout?.background?.color || '#131722';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Draw grid
+          drawGrid();
+          
+          // Draw time scale
+          drawTimeScale();
+          
+          // Draw price scale
+          drawPriceScale();
+          
+          // Draw data
+          drawData();
+        }
+        
+        function drawGrid() {
+          const gridColor = options.grid?.horzLines?.color || '#232323';
+          ctx.strokeStyle = gridColor;
+          ctx.lineWidth = 1;
+          
+          // Horizontal grid lines
+          const height = canvas.height - 30; // Leave space for time scale
+          const priceRangeSize = priceRange.to - priceRange.from;
+          
+          for (let i = 0; i < 5; i++) {
+            const y = 10 + (i * (height - 20) / 4);
+            ctx.beginPath();
+            ctx.moveTo(60, y);
+            ctx.lineTo(canvas.width - 60, y);
+            ctx.stroke();
+          }
+          
+          // Vertical grid lines
+          const width = canvas.width - 120; // Leave space for price scale
+          const timeRangeSize = timeRange.to - timeRange.from;
+          
+          for (let i = 0; i < 5; i++) {
+            const x = 60 + (i * width / 4);
+            ctx.beginPath();
+            ctx.moveTo(x, 10);
+            ctx.lineTo(x, canvas.height - 30);
+            ctx.stroke();
+          }
+        }
+        
+        function drawTimeScale() {
+          ctx.fillStyle = '#232323';
+          ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+          
+          // Draw time labels
+          ctx.fillStyle = options.layout?.textColor || '#D9D9D9';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          
+          const width = canvas.width - 120;
+          const timeRangeSize = timeRange.to - timeRange.from;
+          
+          for (let i = 0; i < 5; i++) {
+            const x = 60 + (i * width / 4);
+            const time = timeRange.from + (i * timeRangeSize / 4);
+            const date = new Date(time * 1000);
+            const label = `${date.getUTCMonth()+1}/${date.getUTCDate()}`;
+            ctx.fillText(label, x, canvas.height - 15);
+          }
+        }
+        
+        function drawPriceScale() {
+          ctx.fillStyle = '#232323';
+          ctx.fillRect(canvas.width - 60, 0, 60, canvas.height - 30);
+          
+          // Draw price labels
+          ctx.fillStyle = options.layout?.textColor || '#D9D9D9';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'right';
+          
+          const height = canvas.height - 30;
+          const priceRangeSize = priceRange.to - priceRange.from;
+          
+          for (let i = 0; i < 5; i++) {
+            const y = 10 + (i * (height - 20) / 4);
+            const price = priceRange.to - (i * priceRangeSize / 4);
+            ctx.fillText(price.toFixed(5), canvas.width - 10, y + 4);
+          }
+        }
+        
+        function drawData() {
+          if (data.length === 0) return;
+          
+          const width = canvas.width - 120;
+          const height = canvas.height - 30;
+          const timeRangeSize = timeRange.to - timeRange.from;
+          const priceRangeSize = priceRange.to - priceRange.from;
+          
+          // Filter to visible data
+          const visibleData = data.filter(candle => 
+            candle.time >= timeRange.from && candle.time <= timeRange.to
+          );
+          
+          // Candlestick width
+          const candleWidth = Math.max(4, Math.min(20, width / visibleData.length - 1));
+          
+          // Draw each candle
+          visibleData.forEach(candle => {
+            const x = 60 + ((candle.time - timeRange.from) / timeRangeSize * width);
+            
+            const openY = height - 10 - ((candle.open - priceRange.from) / priceRangeSize * (height - 20));
+            const highY = height - 10 - ((candle.high - priceRange.from) / priceRangeSize * (height - 20));
+            const lowY = height - 10 - ((candle.low - priceRange.from) / priceRangeSize * (height - 20));
+            const closeY = height - 10 - ((candle.close - priceRange.from) / priceRangeSize * (height - 20));
+            
+            // Determine color
+            const isUp = candle.close >= candle.open;
+            const color = isUp ? '#26a69a' : '#ef5350';
+            
+            // Draw body
+            ctx.fillStyle = color;
+            ctx.fillRect(
+              x - candleWidth / 2,
+              Math.min(openY, closeY),
+              candleWidth,
+              Math.abs(closeY - openY) || 1
+            );
+            
+            // Draw wick
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, Math.min(openY, closeY));
+            ctx.moveTo(x, Math.max(openY, closeY));
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
+          });
+        }
+        
+        // Initialize price and time ranges
+        function updateRanges() {
+          if (data.length === 0) return;
+          
+          // Time range
+          timeRange.from = data[0].time;
+          timeRange.to = data[data.length - 1].time;
+          
+          // Price range
+          let minPrice = Infinity;
+          let maxPrice = -Infinity;
+          
+          data.forEach(candle => {
+            minPrice = Math.min(minPrice, candle.low);
+            maxPrice = Math.max(maxPrice, candle.high);
+          });
+          
+          // Add margins
+          const range = maxPrice - minPrice;
+          const topMargin = range * 0.2;
+          const bottomMargin = range * 0.1;
+          
+          priceRange.from = minPrice - bottomMargin;
+          priceRange.to = maxPrice + topMargin;
+          
+          // Notify listeners
+          listeners.visibleTimeRangeChange.forEach(callback => callback(timeRange));
+        }
+        
+        // Handle user interactions
+        canvas.addEventListener('click', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const point = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          };
+          
+          listeners.click.forEach(callback => callback({ point }));
+        });
+        
+        canvas.addEventListener('dblclick', (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const point = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          };
+          
+          listeners.doubleClick.forEach(callback => callback({ point }));
+        });
+        
+        // Return chart API
+        return {
+          resize: function(width, height) {
+            canvas.width = width;
+            canvas.height = height;
+            draw();
+          },
+          
+          addCandlestickSeries: function(options) {
+            return {
+              setData: function(newData) {
+                data = [...newData];
+                updateRanges();
+                draw();
+              },
+              
+              data: function() {
+                return data;
+              },
+              
+              priceScale: function() {
+                return {
+                  applyOptions: function(options) {
+                    // Handle price scale options
+                    if (options.minValue !== undefined && options.maxValue !== undefined) {
+                      priceRange.from = options.minValue;
+                      priceRange.to = options.maxValue;
+                      draw();
+                    }
+                  }
+                };
+              }
+            };
+          },
+          
+          timeScale: function() {
+            return {
+              fitContent: function() {
+                updateRanges();
+                draw();
+              },
+              
+              getVisibleRange: function() {
+                return { ...timeRange };
+              },
+              
+              setVisibleRange: function(range) {
+                timeRange = { ...range };
+                draw();
+              },
+              
+              subscribeVisibleTimeRangeChange: function(callback) {
+                listeners.visibleTimeRangeChange.push(callback);
+                return function() {
+                  listeners.visibleTimeRangeChange = 
+                    listeners.visibleTimeRangeChange.filter(cb => cb !== callback);
+                };
+              }
+            };
+          },
+          
+          priceScale: function(id) {
+            return {
+              applyOptions: function(options) {
+                if (options.autoScale !== undefined) {
+                  autoScale = options.autoScale;
+                }
+                draw();
+              },
+              
+              options: function() {
+                return { autoScale };
+              },
+              
+              setVisibleRange: function(range) {
+                priceRange = { ...range };
+                draw();
+              }
+            };
+          },
+          
+          subscribeClick: function(callback) {
+            listeners.click.push(callback);
+            return function() {
+              listeners.click = listeners.click.filter(cb => cb !== callback);
+            };
+          },
+          
+          subscribeDoubleClick: function(callback) {
+            listeners.doubleClick.push(callback);
+            return function() {
+              listeners.doubleClick = listeners.doubleClick.filter(cb => cb !== callback);
+            };
+          },
+          
+          applyOptions: function(options) {
+            if (options.width) canvas.width = options.width;
+            if (options.height) canvas.height = options.height;
+            draw();
+          }
+        };
+      }
+    };
+  })();
+
+  // SmartScaling implementation
+  class SmartScaling {
+    constructor(chart, series) {
+      this.chart = chart;
+      this.series = series;
+      this.isManualScale = false;
+      this.margins = {
+        top: 0.2,
+        bottom: 0.1
+      };
+      
+      this.setupEventHandlers();
+    }
+    
+    setupEventHandlers() {
+      this.chart.subscribeClick(param => {
+        if (param.point && param.point.y < 40) {
+          this.isManualScale = true;
+          updateStatus("Manual scaling activated");
+        }
+      });
+      
+      this.chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+        if (!this.isManualScale) {
+          this.autoScaleToVisible();
+        }
+      });
+      
+      this.chart.subscribeDoubleClick(param => {
+        if (param.point && param.point.y < 40) {
+          this.resetAutoScale();
+          updateStatus("Auto-scaling reset");
+        }
+      });
+    }
+    
+    autoScaleToVisible() {
+      const timeRange = this.chart.timeScale().getVisibleRange();
+      if (!timeRange) return;
+      
+      const seriesData = this.series.data();
+      if (!seriesData || seriesData.length === 0) return;
+      
+      const visibleData = seriesData.filter(candle => 
+        candle.time >= timeRange.from && candle.time <= timeRange.to
+      );
+      
+      if (visibleData.length === 0) return;
+      
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
+      
+      visibleData.forEach(candle => {
+        minPrice = Math.min(minPrice, candle.low);
+        maxPrice = Math.max(maxPrice, candle.high);
+      });
+      
+      const range = maxPrice - minPrice;
+      const topMargin = range * this.margins.top;
+      const bottomMargin = range * this.margins.bottom;
+      
+      this.chart.priceScale('right').setVisibleRange({
+        from: minPrice - bottomMargin,
+        to: maxPrice + topMargin
+      });
+      
+      updateStatus(`Auto-scaled to range: ${(minPrice - bottomMargin).toFixed(5)} - ${(maxPrice + topMargin).toFixed(5)}`);
+    }
+    
+    resetAutoScale() {
+      this.isManualScale = false;
+      this.chart.priceScale('right').applyOptions({ 
+        autoScale: true
+      });
+      updateStatus("Reset to auto-scale mode");
+    }
+    
+    fitContent() {
+      this.autoScaleToVisible();
+      updateStatus("Fitted content with SmartScaling");
+    }
+  }
+  
+  // Generate example data
+  function generateExampleData() {
+    const data = [];
+    const startTime = new Date(Date.UTC(2025, 4, 1, 0, 0, 0));
+    let price = 1.0850;
+    
+    // Generate 30 days of data
+    for (let d = 0; d < 30; d++) {
+      for (let h = 0; h < 8; h++) { // 8 candles per day for simplicity
+        const time = new Date(startTime);
+        time.setUTCDate(time.getUTCDate() + d);
+        time.setUTCHours(h * 3); // Every 3 hours
+        
+        // Volatility and trend
+        const volatility = 0.0005 + (Math.random() * 0.001);
+        const trend = (Math.random() > 0.4 ? 1 : -1) * 0.0002;
+        
+        price += trend;
+        
+        const open = price;
+        const high = price + (Math.random() * volatility);
+        const low = price - (Math.random() * volatility);
+        const close = price + (Math.random() * volatility * 2 - volatility);
+        
+        price = close;
+        
+        data.push({
+          time: Math.floor(time.getTime() / 1000),
+          open: open,
+          high: high,
+          low: low,
+          close: close
+        });
+      }
+    }
+    
+    return data;
+  }
+  
+  // Update status message
+  function updateStatus(message) {
+    document.getElementById('status').textContent = "Status: " + message;
+  }
+  
+  // Initialize when page loads
+  document.addEventListener('DOMContentLoaded', () => {
+    // Get container
+    const container = document.getElementById('chart');
+    
+    // Create chart
+    const chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      layout: {
+        background: { color: '#1a1a1a' },
+        textColor: '#d9d9d9',
+      },
+      rightPriceScale: {
+        scaleMargins: {
+          top: 0.2,
+          bottom: 0.1,
+        },
+        autoScale: true,
+      },
+    });
+    
+    // Create series
+    const candleSeries = chart.addCandlestickSeries({});
+    
+    // Initialize smart scaling
+    const smartScaling = new SmartScaling(chart, candleSeries);
+    
+    // Load data
+    const data = generateExampleData();
+    candleSeries.setData(data);
+    
+    // Fit content
+    smartScaling.fitContent();
+    chart.timeScale().fitContent();
+    
+    updateStatus(`Loaded ${data.length} candles with auto-scaling enabled`);
+    
+    // Event handlers
+    document.getElementById('auto-on').addEventListener('click', () => {
+      chart.priceScale('right').applyOptions({ autoScale: true });
+      smartScaling.resetAutoScale();
+      updateStatus("Auto-scale enabled");
+    });
+    
+    document.getElementById('auto-off').addEventListener('click', () => {
+      chart.priceScale('right').applyOptions({ autoScale: false });
+      smartScaling.isManualScale = true;
+      updateStatus("Auto-scale disabled - manual mode");
+    });
+    
+    document.getElementById('fit').addEventListener('click', () => {
+      smartScaling.fitContent();
+      chart.timeScale().fitContent();
+      updateStatus("Chart fitted to data");
+    });
+    
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      const visibleRange = chart.timeScale().getVisibleRange();
+      if (!visibleRange) return;
+      
+      const middle = (visibleRange.from + visibleRange.to) / 2;
+      const range = visibleRange.to - visibleRange.from;
+      
+      chart.timeScale().setVisibleRange({
+        from: middle - range / 4,
+        to: middle + range / 4,
+      });
+      
+      updateStatus("Zoomed in 50%");
+    });
+    
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      const visibleRange = chart.timeScale().getVisibleRange();
+      if (!visibleRange) return;
+      
+      const middle = (visibleRange.from + visibleRange.to) / 2;
+      const range = visibleRange.to - visibleRange.from;
+      
+      chart.timeScale().setVisibleRange({
+        from: middle - range,
+        to: middle + range,
+      });
+      
+      updateStatus("Zoomed out 200%");
+    });
+    
+    // Resize handling
+    window.addEventListener('resize', () => {
+      chart.resize(container.clientWidth, container.clientHeight);
+    });
+  });
+  </script>
+</body>
+</html>

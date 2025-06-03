@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"github.com/sptrader/sptrader/internal/db"
 	"github.com/sptrader/sptrader/internal/models"
@@ -19,6 +20,11 @@ type DataService struct {
 // NewDataService creates a new data service
 func NewDataService(pool *db.Pool) *DataService {
 	return &DataService{pool: pool}
+}
+
+// GetConnection returns a database connection for direct queries
+func (s *DataService) GetConnection(ctx context.Context) (*pgxpool.Conn, error) {
+	return s.pool.Acquire(ctx)
 }
 
 // GetCandles retrieves OHLC data for the specified parameters
@@ -129,7 +135,7 @@ func (s *DataService) GetSymbols(ctx context.Context) ([]models.Symbol, error) {
 		SELECT DISTINCT 
 			symbol,
 			max(timestamp) as last_update
-		FROM market_data_v2
+		FROM ohlc_1m_v2
 		GROUP BY symbol
 		ORDER BY symbol
 	`
@@ -173,12 +179,13 @@ func (s *DataService) GetDataRange(ctx context.Context, symbol string) (map[stri
 	}
 	defer conn.Release()
 
+	// First try to get range from ohlc_1m_v2 which should have the most complete data
 	query := `
 		SELECT 
 			MIN(timestamp) as start_date,
 			MAX(timestamp) as end_date,
 			COUNT(*) as tick_count
-		FROM market_data_v2
+		FROM ohlc_1m_v2
 		WHERE symbol = $1
 	`
 
@@ -186,8 +193,20 @@ func (s *DataService) GetDataRange(ctx context.Context, symbol string) (map[stri
 	var tickCount int64
 
 	err = conn.QueryRow(ctx, query, symbol).Scan(&startDate, &endDate, &tickCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query data range: %w", err)
+	if err != nil || tickCount == 0 {
+		// Fallback to market_data_v2 if ohlc table is empty
+		query = `
+			SELECT 
+				MIN(timestamp) as start_date,
+				MAX(timestamp) as end_date,
+				COUNT(*) as tick_count
+			FROM market_data_v2
+			WHERE symbol = $1
+		`
+		err = conn.QueryRow(ctx, query, symbol).Scan(&startDate, &endDate, &tickCount)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query data range: %w", err)
+		}
 	}
 
 	return map[string]interface{}{
@@ -195,6 +214,7 @@ func (s *DataService) GetDataRange(ctx context.Context, symbol string) (map[stri
 		"start":      startDate,
 		"end":        endDate,
 		"tick_count": tickCount,
+		"source":     "v2",
 	}, nil
 }
 

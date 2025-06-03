@@ -62,6 +62,8 @@ func main() {
 		
 		// Data endpoints
 		v1.GET("/candles", handlers.GetCandles)
+		v1.GET("/candles/native", handlers.GetNativeCandles)  // Native QuestDB aggregation
+		v1.GET("/candles/native/v2", handlers.GetNativeCandlesV2)  // Improved native aggregation without gaps
 		v1.GET("/candles/smart", handlers.GetSmartCandles)
 		v1.GET("/candles/explain", handlers.ExplainQuery)
 		
@@ -69,6 +71,8 @@ func main() {
 		v1.GET("/symbols", handlers.GetSymbols)
 		v1.GET("/timeframes", handlers.GetTimeframes)
 		v1.GET("/data/range", handlers.GetDataRange)
+		v1.GET("/data/quality", handlers.GetDataQuality)
+		v1.GET("/data/quality/v2", handlers.GetDataQualityV2)
 		
 		// Stats
 		v1.GET("/stats", handlers.GetStats)

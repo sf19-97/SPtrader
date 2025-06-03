@@ -1,6 +1,6 @@
 # OHLC Candle Generation Guide
 
-*Last Updated: May 31, 2025*
+*Last Updated: May 31, 2025 13:45 UTC*
 
 ## Overview
 
@@ -9,128 +9,197 @@ This guide explains how to generate OHLC (Open-High-Low-Close) candles from tick
 ## Current Status
 
 ✅ **Fixed OHLC generation system and rebuilt all candles**
-- Successfully generated 1-minute candles directly from all tick data (March 2023 - May 2025)
-- Generated higher timeframes (5m, 15m, 30m, 1h, 4h, 1d) from 1-minute data
+- Successfully implemented direct sampling from tick data for all timeframes
 - Fixed issues with QuestDB's SAMPLE BY aggregation
+- Implemented proper verification and monitoring
+- Added special handling for daily candles to avoid weekend issues
 
 ## Raw Data Status
 
 - EURUSD tick data spans from **March 1, 2023** to **May 30, 2025**
-- **39,519,525** ticks in the database
-- **No gaps** in the data
+- **39,532,411** ticks in the database
+- GBPUSD data: 344,893 ticks from Jan 19, 2024 to Jan 25, 2024
+- USDJPY data: 691,904 ticks from Jan 19, 2024 to Jan 25, 2024
 
 ## OHLC Candle Counts
 
-Current OHLC candle counts for EURUSD:
-- 1m: 585,940 candles
-- 5m: 117,802 candles
-- 15m: 39,279 candles
-- 30m: 19,641 candles
-- 1h: 9,821 candles
-- 4h: 2,676 candles
-- 1d: 667 candles
-
-All candles span the full date range from **March 1, 2023** to **May 30, 2025**.
+For a full day of trading:
+- 1m: 1,440 candles (60 × 24)
+- 5m: 288 candles (12 × 24)
+- 15m: 96 candles (4 × 24)
+- 30m: 48 candles (2 × 24)
+- 1h: 24 candles (1 × 24)
+- 4h: 6 candles (24 ÷ 4)
+- 1d: 1 candle (1 day)
 
 ## How to Generate OHLC Candles
 
-### Step 1: Generate 1-minute Candles From Tick Data
+### Direct Generation From Tick Data
 
-```python
-# Connect to QuestDB
-import requests
-
-# Create a new table
-requests.get('http://localhost:9000/exec', params={'query': 'DROP TABLE IF EXISTS ohlc_1m_v2_new'})
-requests.get('http://localhost:9000/exec', params={'query': """
-CREATE TABLE ohlc_1m_v2_new (
-    timestamp TIMESTAMP,
-    symbol SYMBOL,
-    open DOUBLE,
-    high DOUBLE,
-    low DOUBLE,
-    close DOUBLE,
-    volume DOUBLE,
-    tick_count LONG,
-    vwap DOUBLE,
-    trading_session SYMBOL
-) TIMESTAMP(timestamp) PARTITION BY DAY;
-"""})
-
-# Generate 1-minute candles from tick data
-tick_query = """
-INSERT INTO ohlc_1m_v2_new
-SELECT 
-    timestamp,
-    symbol,
-    first(bid) as open,
-    max(bid) as high,
-    min(bid) as low,
-    last(bid) as close,
-    sum(volume) as volume,
-    count() as tick_count,
-    avg(bid) as vwap,
-    'MARKET' as trading_session
-FROM market_data_v2
-WHERE symbol = 'EURUSD'
-SAMPLE BY 1m ALIGN TO CALENDAR
-"""
-requests.get('http://localhost:9000/exec', params={'query': tick_query})
-
-# Swap tables
-requests.get('http://localhost:9000/exec', params={'query': 'DROP TABLE IF EXISTS ohlc_1m_v2_old'})
-requests.get('http://localhost:9000/exec', params={'query': 'RENAME TABLE ohlc_1m_v2 TO ohlc_1m_v2_old'})
-requests.get('http://localhost:9000/exec', params={'query': 'RENAME TABLE ohlc_1m_v2_new TO ohlc_1m_v2'})
-```
-
-### Step 2: Generate Higher Timeframes
-
-Use the `simple_ohlc_generator.py` script:
+The new approach uses direct sampling from tick data for each timeframe, avoiding issues with cascading aggregation.
 
 ```bash
-cd /home/millet_frazier/SPtrader/scripts
-python3 simple_ohlc_generator.py EURUSD
+# Basic usage
+python3 scripts/production_ohlc_generator.py EURUSD
+
+# With specific date range
+python3 scripts/production_ohlc_generator.py EURUSD 2023-03-01 2023-03-02
+```
+
+### Process Overview
+
+1. **Database Preparation**:
+   ```bash
+   # Backup existing data
+   curl -o backups/market_data_v2_backup.csv "http://localhost:9000/exp?query=SELECT+*+FROM+market_data_v2&fmt=csv"
+   ```
+
+2. **OHLC Generation**:
+   ```bash
+   # Run generator for each symbol
+   python3 scripts/production_ohlc_generator.py EURUSD
+   python3 scripts/production_ohlc_generator.py GBPUSD
+   python3 scripts/production_ohlc_generator.py USDJPY
+   ```
+
+3. **Verification**:
+   ```bash
+   # Verify data integrity
+   python3 scripts/production_ohlc_verification.py EURUSD
+   ```
+
+### How It Works
+
+The production_ohlc_generator.py script:
+1. Creates appropriate table structures for each timeframe
+2. Uses QuestDB's SAMPLE BY with ALIGN TO CALENDAR for proper alignment
+3. Samples directly from tick data for each timeframe
+4. Includes special handling for daily candles to avoid weekend issues
+5. Validates and reports candle counts and sample data
+
+## Table Schema
+
+All OHLC tables follow this structure:
+
+```sql
+CREATE TABLE ohlc_1h_v2 (
+    timestamp TIMESTAMP,       -- Candle timestamp
+    symbol SYMBOL,             -- Currency pair
+    open DOUBLE,               -- Opening price
+    high DOUBLE,               -- Highest price
+    low DOUBLE,                -- Lowest price
+    close DOUBLE,              -- Closing price
+    volume DOUBLE,             -- Volume
+    tick_count LONG,           -- Number of ticks in the candle
+    vwap DOUBLE,               -- Volume Weighted Average Price
+    trading_session SYMBOL,    -- Session marker
+    validation_status SYMBOL   -- Validation status
+) TIMESTAMP(timestamp) PARTITION BY DAY;
+```
+
+Daily tables use `PARTITION BY MONTH` instead.
+
+## Special Handling for Daily Candles
+
+Daily candles require special treatment to align properly with trading days:
+
+```sql
+INSERT INTO ohlc_1d_v2
+SELECT 
+    timestamp::timestamp - 86400000000 as timestamp,  -- Shift back 1 day
+    symbol,
+    first(price) as open,
+    max(price) as high,
+    min(price) as low,
+    last(price) as close,
+    sum(volume) as volume,
+    count() as tick_count,
+    avg(price) as vwap,
+    'MARKET' as trading_session,
+    'VERIFIED' as validation_status
+FROM market_data_v2
+WHERE symbol = 'EURUSD'
+AND timestamp >= '2023-03-01T00:00:00.000000Z'
+AND timestamp < '2023-03-02T00:00:00.000000Z'
+SAMPLE BY 1d ALIGN TO CALENDAR
+```
+
+The timestamp shifting ensures proper forex trading day alignment and prevents weekend issues.
+
+## Verification and Monitoring
+
+### Manual Verification
+
+```bash
+# Verify a single symbol
+python3 scripts/production_ohlc_verification.py EURUSD
+```
+
+The verification script checks:
+- Candle counts for all timeframes
+- No duplicate timestamps
+- No inappropriate weekend timestamps
+- Price continuity between candles
+- Tick coverage quality
+
+### Automated Monitoring
+
+A daily monitoring job runs at 6:00 AM:
+
+```bash
+0 6 * * * /home/millet_frazier/SPtrader/scripts/monitor_ohlc_integrity.py
 ```
 
 This script:
-1. Uses 1-minute candles as the source
-2. Directly generates all higher timeframes
-3. Preserves existing data for other symbols
-4. Uses QuestDB's SAMPLE BY feature with proper alignment
+- Checks for new candles
+- Verifies no duplicates exist
+- Ensures no weekend timestamps in daily candles
+- Sends alerts if issues are detected
 
 ## Troubleshooting
 
-If you encounter issues with OHLC generation:
+If you encounter issues:
 
-1. Check for 1-minute candles first:
+1. **Check for tick data**:
    ```bash
-   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT COUNT(*) FROM ohlc_1m_v2 WHERE symbol='EURUSD'"
+   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT COUNT(*) FROM market_data_v2 WHERE symbol='EURUSD'"
    ```
 
-2. Make sure QuestDB is running:
+2. **Verify candle counts**:
    ```bash
-   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT 1"
+   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT COUNT(*) FROM ohlc_1h_v2 WHERE symbol='EURUSD'"
    ```
 
-3. Check if tables have the correct schema:
+3. **Check for duplicates**:
    ```bash
-   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SHOW COLUMNS FROM ohlc_15m_v2"
+   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT COUNT(*), COUNT(DISTINCT timestamp) FROM ohlc_1h_v2 WHERE symbol='EURUSD'"
    ```
 
-4. Check for data gaps:
+4. **Look for weekend timestamps**:
    ```bash
-   cd /home/millet_frazier/SPtrader/tools
-   python3 check_data_gaps.py EURUSD --ohlc
+   curl -G 'http://localhost:9000/exec' --data-urlencode "query=SELECT * FROM ohlc_1d_v2 WHERE symbol='EURUSD' AND EXTRACT(dow FROM timestamp) = 6"
    ```
 
-## Key Insights
+## QuestDB Limitations and Workarounds
 
-1. **QuestDB SAMPLE BY Syntax**: Works best directly on 1-minute candles
-2. **Atomic Table Swapping**: Safer than TRUNCATE for table replacement
-3. **Performance**: Generating OHLC candles directly from tick data is efficient with QuestDB
+1. **No DELETE WHERE Clause**:
+   - Tables are recreated for each symbol update
+   - Non-target data is preserved during regeneration
+
+2. **No HAVING Clause**:
+   - COUNT(DISTINCT timestamp) is used for duplicate detection
+
+3. **Limited Window Functions**:
+   - Complex window operations are avoided
 
 ## Next Steps
 
-1. Add automated OHLC generation to the daily data loading process
-2. Create a unified candle generation script that works with all symbols
-3. Implement periodic OHLC verification to catch any data issues
+1. ✅ Create monitoring system for daily OHLC verification
+2. ✅ Implement production-ready generator for all timeframes
+3. ✅ Add documentation and production rollout guide
+4. ✅ Add the OHLC generator to the daily data loading process
+5. Create an integrated API for efficient candle retrieval
+
+---
+
+*This documentation was updated as part of the OHLC data pipeline rebuild project.*

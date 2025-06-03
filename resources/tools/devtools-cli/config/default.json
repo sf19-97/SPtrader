@@ -1,0 +1,19 @@
+{
+  "electron": {
+    "debugPort": 9222,
+    "host": "localhost",
+    "timeout": 10000,
+    "processName": "electron.*SPtrader"
+  },
+  "paths": {
+    "outputDir": "./output",
+    "logFile": "./devtools-cli.log"
+  },
+  "defaults": {
+    "format": "json",
+    "captureTime": 5000
+  },
+  "display": {
+    "colorEnabled": true
+  }
+}

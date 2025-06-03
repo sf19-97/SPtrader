@@ -1,0 +1,8 @@
+node_modules/
+logs/
+config/local.json
+.env
+output/*.json
+output/*.csv
+npm-debug.log
+.DS_Store

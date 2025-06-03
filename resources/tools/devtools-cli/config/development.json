@@ -1,0 +1,12 @@
+{
+  "electron": {
+    "timeout": 15000
+  },
+  "defaults": {
+    "captureTime": 10000
+  },
+  "display": {
+    "colorEnabled": true,
+    "debugMode": true
+  }
+}

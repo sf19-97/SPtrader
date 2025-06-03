@@ -24,10 +24,6 @@ class SmartScaling {
   }
 }
 
-// Import or include the ForexSessionFilter
-const ForexSessionFilter = window.ForexSessionFilter || {
-  createContinuousView: (candles) => candles // Fallback if not loaded
-};
 
 // Initialize chart
 function initChart() {
@@ -445,8 +441,10 @@ function mergeAndDisplayData(newCandles, symbol) {
   // Apply forex session filter to create continuous view without gaps
   if (forexSessionFilter) {
     // Use the forex session filter to create a continuous view
-    const continuousData = forexSessionFilter.createContinuousView(chartData);
-    console.log(`Filtered ${chartData.length} candles to ${continuousData.length} trading candles`);
+    // Pass the timeframe to the filter so it can handle daily candles correctly
+    const timeframe = document.getElementById('timeframe').value;
+    const continuousData = forexSessionFilter.createContinuousView(chartData, timeframe);
+    console.log(`Filtered ${chartData.length} candles to ${continuousData.length} trading candles for ${timeframe}`);
     chartData = continuousData;
   } else {
     console.log('Forex session filter not loaded, showing data with gaps');
@@ -575,8 +573,9 @@ async function forceLoadAllData() {
     
     // Apply forex session filter if available
     if (forexSessionFilter) {
-      const continuousData = forexSessionFilter.createContinuousView(chartData);
-      console.log(`Emergency mode: Filtered ${chartData.length} candles to ${continuousData.length} trading candles`);
+      // Pass the timeframe to handle daily candles correctly
+      const continuousData = forexSessionFilter.createContinuousView(chartData, timeframe);
+      console.log(`Emergency mode: Filtered ${chartData.length} candles to ${continuousData.length} trading candles for ${timeframe}`);
       chartData = continuousData;
     }
     

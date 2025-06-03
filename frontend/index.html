@@ -86,35 +86,9 @@
   <script src="node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
   <script src="src/virtualScrolling/ResolutionSelector.js"></script>
   <script src="src/virtualScrolling/VirtualDataManager.js"></script>
-  <script src="src/utils/SmartScaling.js"></script>
   
-  <!-- Initialize Forex Session Filter -->
-  <script>
-    // Load Forex Session Filter from API or local file
-    (function loadForexSessionFilter() {
-      try {
-        // Try to get the filter code from the API
-        if (window.api && window.api.getForexSessionFilter) {
-          const filterCode = window.api.getForexSessionFilter();
-          if (filterCode) {
-            // Create script element to load the code
-            const script = document.createElement('script');
-            script.type = 'module';
-            script.textContent = filterCode;
-            document.head.appendChild(script);
-            
-            // Create a global class for non-module use
-            script.onload = () => {
-              window.ForexSessionFilter = ForexSessionFilter;
-              console.log('Forex Session Filter loaded successfully');
-            };
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load Forex Session Filter:', e);
-      }
-    })();
-  </script>
+  <!-- Load Forex Session Filter directly -->
+  <script src="src/utils/forex_session_filter.js"></script>
   
   <script src="renderer.js"></script>
 </body>

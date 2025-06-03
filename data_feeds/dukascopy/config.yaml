@@ -1,0 +1,48 @@
+# Dukascopy Downloader Configuration
+# Created: May 31, 2025
+
+# Database Connection
+database:
+  host: 192.168.1.11
+  port: 9000
+  ilp_port: 9009
+  user: admin
+  password: quest
+
+# Symbols to process
+symbols:
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+
+# Download settings
+download:
+  cache_dir: /home/millet_frazier/SPtrader/data_feeds/dukascopy/cache
+  max_workers: 10
+  batch_days: 3
+  timeout: 30
+
+# ILP settings
+ilp:
+  enabled: true
+  buffer_size: 50000
+  batch_size: 10000
+
+# OHLC Generation
+ohlc:
+  timeframes:
+    - 1m
+    - 5m
+    - 15m
+    - 30m
+    - 1h
+    - 4h
+    - 1d
+  partition_by: DAY
+
+# Logging
+logging:
+  file: /home/millet_frazier/SPtrader/data_feeds/dukascopy/logs/dukascopy.log
+  level: INFO
+  max_size: 10485760  # 10MB
+  backup_count: 5

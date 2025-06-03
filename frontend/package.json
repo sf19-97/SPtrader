@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "start-dev": "NODE_ENV=development electron .",
-    "start-no-sandbox": "electron . --no-sandbox",
+    "start-no-sandbox": "electron . --no-sandbox --remote-debugging-port=9222",
     "build": "electron-builder",
     "dist": "electron-builder --publish=never"
   },

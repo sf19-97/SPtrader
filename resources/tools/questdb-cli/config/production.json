@@ -1,0 +1,12 @@
+{
+  "database": {
+    "timeout": 30000
+  },
+  "defaults": {
+    "limit": 100
+  },
+  "display": {
+    "colorEnabled": false,
+    "debugMode": false
+  }
+}

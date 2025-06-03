@@ -1,1 +1,0 @@
-simple_ohlc_generator.py

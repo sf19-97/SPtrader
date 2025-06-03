@@ -121,20 +121,55 @@ class VirtualDataManager {
       let candles = this.cache.get(cacheKey);
       
       if (!candles) {
-        // Fetch from API
-        const params = new URLSearchParams({
-          symbol: this.symbol,
-          tf: this.timeframe,
-          start: start.toISOString(),
-          end: end.toISOString()
-        });
+        // For large date ranges, we need to load data in chunks to avoid timeouts
+        const timeDiff = end.getTime() - start.getTime();
+        const MAX_CHUNK_DAYS = 90; // Load max 90 days at a time
+        const DAY_MS = 86400000; // 1 day in milliseconds
         
-        const response = await fetch(`${this.apiBase}/candles/native/v2?${params}`);
-        const data = await response.json();
-        candles = data.candles || [];
-        
-        // Cache the result
-        this.addToCache(cacheKey, candles);
+        // If range is more than MAX_CHUNK_DAYS, split into chunks
+        if (timeDiff > MAX_CHUNK_DAYS * DAY_MS) {
+          console.log(`Large date range detected (${Math.round(timeDiff/DAY_MS)} days). Loading in chunks...`);
+          
+          // Load just 90 days around the visible area first to show something quickly
+          const midPoint = new Date((visibleStart.getTime() + visibleEnd.getTime()) / 2);
+          const chunkStart = new Date(midPoint.getTime() - (MAX_CHUNK_DAYS/2 * DAY_MS));
+          const chunkEnd = new Date(midPoint.getTime() + (MAX_CHUNK_DAYS/2 * DAY_MS));
+          
+          const initialParams = new URLSearchParams({
+            symbol: this.symbol,
+            tf: this.timeframe,
+            start: chunkStart.toISOString(),
+            end: chunkEnd.toISOString()
+          });
+          
+          console.log(`Loading initial chunk: ${chunkStart.toISOString()} to ${chunkEnd.toISOString()}`);
+          const initialResponse = await fetch(`${this.apiBase}/candles/native/v2?${initialParams}`);
+          const initialData = await initialResponse.json();
+          candles = initialData.candles || [];
+          
+          // Store the data we have so far and show it to the user
+          this.addToCache(cacheKey, candles);
+          
+          // Load the rest of the data in a non-blocking way after showing the first chunk
+          setTimeout(() => {
+            this.loadRemainingData(start, end, chunkStart, chunkEnd, cacheKey);
+          }, 500);
+        } else {
+          // For smaller ranges, load all at once as before
+          const params = new URLSearchParams({
+            symbol: this.symbol,
+            tf: this.timeframe,
+            start: start.toISOString(),
+            end: end.toISOString()
+          });
+          
+          const response = await fetch(`${this.apiBase}/candles/native/v2?${params}`);
+          const data = await response.json();
+          candles = data.candles || [];
+          
+          // Cache the result
+          this.addToCache(cacheKey, candles);
+        }
       }
       
       // Convert to chart format
@@ -247,6 +282,111 @@ class VirtualDataManager {
     
     if (this.series) {
       this.series.setData([]);
+    }
+  }
+
+  /**
+   * Load remaining data in chunks for large date ranges
+   */
+  async loadRemainingData(fullStart, fullEnd, loadedStart, loadedEnd, cacheKey) {
+    try {
+      const DAY_MS = 86400000; // 1 day in milliseconds
+      const MAX_CHUNK_DAYS = 90; // Load max 90 days at a time
+      const CHUNK_SIZE = MAX_CHUNK_DAYS * DAY_MS;
+      let allCandles = this.cache.get(cacheKey) || [];
+      
+      // Load data before the already loaded chunk
+      if (fullStart < loadedStart) {
+        let currentEnd = new Date(loadedStart.getTime());
+        let currentStart = new Date(Math.max(fullStart.getTime(), currentEnd.getTime() - CHUNK_SIZE));
+        
+        while (currentStart > fullStart) {
+          console.log(`Loading earlier chunk: ${currentStart.toISOString()} to ${currentEnd.toISOString()}`);
+          
+          const params = new URLSearchParams({
+            symbol: this.symbol,
+            tf: this.timeframe,
+            start: currentStart.toISOString(),
+            end: currentEnd.toISOString()
+          });
+          
+          const response = await fetch(`${this.apiBase}/candles/native/v2?${params}`);
+          const data = await response.json();
+          const newCandles = data.candles || [];
+          
+          // Merge with existing data
+          allCandles = this.mergeData(allCandles, newCandles);
+          this.addToCache(cacheKey, allCandles);
+          
+          // Update the chart with what we have so far
+          const chartData = allCandles.map(candle => ({
+            time: new Date(candle.timestamp).getTime() / 1000,
+            open: parseFloat(candle.open),
+            high: parseFloat(candle.high),
+            low: parseFloat(candle.low),
+            close: parseFloat(candle.close)
+          })).sort((a, b) => a.time - b.time);
+          
+          this.applyWindow(chartData, fullStart, fullEnd);
+          this.series.setData(this.window);
+          
+          // Move to next chunk
+          currentEnd = new Date(currentStart.getTime());
+          currentStart = new Date(Math.max(fullStart.getTime(), currentEnd.getTime() - CHUNK_SIZE));
+          
+          // Small delay to avoid UI freezing
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      // Load data after the already loaded chunk
+      if (fullEnd > loadedEnd) {
+        let currentStart = new Date(loadedEnd.getTime());
+        let currentEnd = new Date(Math.min(fullEnd.getTime(), currentStart.getTime() + CHUNK_SIZE));
+        
+        while (currentEnd < fullEnd) {
+          console.log(`Loading later chunk: ${currentStart.toISOString()} to ${currentEnd.toISOString()}`);
+          
+          const params = new URLSearchParams({
+            symbol: this.symbol,
+            tf: this.timeframe,
+            start: currentStart.toISOString(),
+            end: currentEnd.toISOString()
+          });
+          
+          const response = await fetch(`${this.apiBase}/candles/native/v2?${params}`);
+          const data = await response.json();
+          const newCandles = data.candles || [];
+          
+          // Merge with existing data
+          allCandles = this.mergeData(allCandles, newCandles);
+          this.addToCache(cacheKey, allCandles);
+          
+          // Update the chart with what we have so far
+          const chartData = allCandles.map(candle => ({
+            time: new Date(candle.timestamp).getTime() / 1000,
+            open: parseFloat(candle.open),
+            high: parseFloat(candle.high),
+            low: parseFloat(candle.low),
+            close: parseFloat(candle.close)
+          })).sort((a, b) => a.time - b.time);
+          
+          this.applyWindow(chartData, fullStart, fullEnd);
+          this.series.setData(this.window);
+          
+          // Move to next chunk
+          currentStart = new Date(currentEnd.getTime());
+          currentEnd = new Date(Math.min(fullEnd.getTime(), currentStart.getTime() + CHUNK_SIZE));
+          
+          // Small delay to avoid UI freezing
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      console.log(`Finished loading all data: ${allCandles.length} candles`);
+      
+    } catch (error) {
+      console.error('Error loading remaining data:', error);
     }
   }
 

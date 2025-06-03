@@ -1,0 +1,18 @@
+{
+  "database": {
+    "host": "192.168.1.11",
+    "httpPort": 9000,
+    "ilpPort": 9009,
+    "pgPort": 8812,
+    "username": "admin",
+    "password": "quest",
+    "timeout": 60000
+  },
+  "defaults": {
+    "limit": 1000
+  },
+  "display": {
+    "colorEnabled": true,
+    "debugMode": true
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "questdb-cli",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@inquirer/prompts": "^7.5.3",
+    "chalk": "^4.1.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^13.1.0",
+    "config": "^3.3.12",
+    "dotenv": "^16.5.0",
+    "fs-extra": "^11.3.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "node-fetch": "^2.6.7",
+    "pg": "^8.16.0",
+    "table": "^6.9.0"
+  }
+}

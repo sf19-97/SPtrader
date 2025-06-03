@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SPtrader Console Check</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+      padding: 20px;
+    }
+    h2 {
+      color: #4caf50;
+    }
+    pre {
+      background: #2a2a2a;
+      padding: 10px;
+      overflow: auto;
+      border-radius: 4px;
+    }
+    .error {
+      color: #ef5350;
+    }
+    .warning {
+      color: #ffc107;
+    }
+    .info {
+      color: #2196f3;
+    }
+    button {
+      background: #3a3a3a;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>SPtrader Console Logger</h1>
+  <p>This page can help debug issues with SPtrader by intercepting console logs.</p>
+  
+  <button id="test-api">Test API Endpoints</button>
+  <button id="test-vdm">Test VirtualDataManager</button>
+  
+  <h2>Console Output:</h2>
+  <pre id="log"></pre>
+  
+  <h2>API Test Results:</h2>
+  <pre id="api-results"></pre>
+  
+  <script>
+    // Override console.log to capture output
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      info: console.info
+    };
+    
+    const logEl = document.getElementById('log');
+    const apiResults = document.getElementById('api-results');
+    
+    // Capture console output
+    console.log = function() {
+      const args = Array.from(arguments);
+      originalConsole.log.apply(console, args);
+      logEl.innerHTML += `<div class="info">[LOG] ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ')}</div>`;
+    };
+    
+    console.error = function() {
+      const args = Array.from(arguments);
+      originalConsole.error.apply(console, args);
+      logEl.innerHTML += `<div class="error">[ERROR] ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ')}</div>`;
+    };
+    
+    console.warn = function() {
+      const args = Array.from(arguments);
+      originalConsole.warn.apply(console, args);
+      logEl.innerHTML += `<div class="warning">[WARN] ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ')}</div>`;
+    };
+    
+    // Test API endpoints
+    async function testApi() {
+      const API_BASE = 'http://localhost:8080/api/v1';
+      const symbol = 'EURUSD';
+      
+      apiResults.innerHTML = '';
+      
+      try {
+        // Test 1: Data Range
+        console.log('Testing /data/range endpoint...');
+        const rangeResponse = await fetch(`${API_BASE}/data/range?symbol=${symbol}`);
+        if (!rangeResponse.ok) {
+          throw new Error(`Failed to get data range: ${rangeResponse.status}`);
+        }
+        
+        const dataRange = await rangeResponse.json();
+        console.log('Data range result:', dataRange);
+        apiResults.innerHTML += `<div>Data Range: ${JSON.stringify(dataRange)}</div>`;
+        
+        // Test 2: Native Candles v2
+        console.log('Testing /candles/native/v2 endpoint...');
+        const start = new Date(dataRange.start);
+        const end = new Date(start.getTime() + (24 * 60 * 60 * 1000)); // 1 day later
+        
+        const params = new URLSearchParams({
+          symbol: symbol,
+          tf: '1h',
+          start: start.toISOString(),
+          end: end.toISOString()
+        });
+        
+        const nativeResponse = await fetch(`${API_BASE}/candles/native/v2?${params}`);
+        if (!nativeResponse.ok) {
+          throw new Error(`Failed to get native candles: ${nativeResponse.status}`);
+        }
+        
+        const nativeData = await nativeResponse.json();
+        console.log('Native candles result:', nativeData);
+        apiResults.innerHTML += `<div>Native Candles: ${JSON.stringify(nativeData)}</div>`;
+        
+        // Report success
+        apiResults.innerHTML += `<div class="info">All API tests passed successfully!</div>`;
+        
+      } catch (error) {
+        console.error('API test error:', error);
+        apiResults.innerHTML += `<div class="error">API Test Error: ${error.message}</div>`;
+      }
+    }
+    
+    // Test VirtualDataManager
+    function testVirtualDataManager() {
+      console.log('Simulating VirtualDataManager...');
+      
+      // Mock implementation
+      class MockVirtualDataManager {
+        constructor(windowSize) {
+          console.log(`Creating VirtualDataManager with window size: ${windowSize}`);
+          this.windowSize = windowSize;
+          this.window = [];
+          this.apiBase = 'http://localhost:8080/api/v1';
+        }
+        
+        init(chart, series, symbol, timeframe) {
+          console.log(`Initializing VDM with symbol: ${symbol}, timeframe: ${timeframe}`);
+          this.symbol = symbol;
+          this.timeframe = timeframe;
+        }
+        
+        async fetchDataRange() {
+          try {
+            console.log('Fetching data range...');
+            const response = await fetch(`${this.apiBase}/data/range?symbol=${this.symbol}`);
+            const data = await response.json();
+            console.log(`Data range result: ${JSON.stringify(data)}`);
+            return data;
+          } catch (error) {
+            console.error('Failed to fetch data range:', error);
+            throw error;
+          }
+        }
+        
+        async loadWindowData(start, end, visibleStart, visibleEnd) {
+          console.log(`Loading window data: ${start.toISOString()} to ${end.toISOString()}`);
+          
+          try {
+            const params = new URLSearchParams({
+              symbol: this.symbol,
+              tf: this.timeframe,
+              start: start.toISOString(),
+              end: end.toISOString()
+            });
+            
+            console.log(`API URL: ${this.apiBase}/candles/native/v2?${params}`);
+            
+            const response = await fetch(`${this.apiBase}/candles/native/v2?${params}`);
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log(`Received ${data.candles?.length || 0} candles`);
+            
+            // Convert to chart format
+            const chartData = (data.candles || [])
+              .filter(c => c && c.timestamp)
+              .map(candle => ({
+                time: new Date(candle.timestamp).getTime() / 1000,
+                open: parseFloat(candle.open),
+                high: parseFloat(candle.high),
+                low: parseFloat(candle.low),
+                close: parseFloat(candle.close)
+              }))
+              .sort((a, b) => a.time - b.time);
+            
+            console.log(`Processed ${chartData.length} candles for chart`);
+            
+            this.window = chartData;
+            return chartData;
+            
+          } catch (error) {
+            console.error('Failed to load window data:', error);
+            throw error;
+          }
+        }
+        
+        clear() {
+          console.log('Clearing VDM data');
+          this.window = [];
+        }
+        
+        getInfo() {
+          return {
+            windowSize: this.window.length
+          };
+        }
+      }
+      
+      // Simulate loading data
+      async function simulateDataLoad() {
+        const vdm = new MockVirtualDataManager(2000000);
+        vdm.init(null, null, 'EURUSD', '1h');
+        
+        try {
+          const dataRange = await vdm.fetchDataRange();
+          
+          const start = new Date(dataRange.start);
+          const end = new Date(dataRange.end);
+          
+          console.log(`Loading data from ${start.toISOString()} to ${end.toISOString()}`);
+          
+          const chartData = await vdm.loadWindowData(start, end, start, end);
+          
+          console.log(`Successfully loaded ${chartData.length} candles`);
+          
+        } catch (error) {
+          console.error('Simulation failed:', error);
+        }
+      }
+      
+      simulateDataLoad();
+    }
+    
+    // Event listeners
+    document.getElementById('test-api').addEventListener('click', testApi);
+    document.getElementById('test-vdm').addEventListener('click', testVirtualDataManager);
+  </script>
+</body>
+</html>

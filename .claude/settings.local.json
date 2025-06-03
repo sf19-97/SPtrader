@@ -27,8 +27,30 @@
       "Bash(find:*)",
       "Bash(npm run start-no-sandbox:*)",
       "Bash(npm run:*)",
-      "Bash(sptrader start:*)"
+      "Bash(sptrader start:*)",
+      "Bash(go build:*)",
+      "Bash(./scripts/kill_everything.sh:*)",
+      "Bash(./stop.sh:*)",
+      "Bash(./start.sh:*)",
+      "Bash(./start_locked.sh:*)",
+      "Bash(sed:*)",
+      "Bash(git add:*)",
+      "Bash(./questdb-cli.sh:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(cp:*)",
+      "Bash(/home/millet_frazier/SPtrader/resources/questdb/scripts/search_docs.sh:*)",
+      "Bash(/home/millet_frazier/SPtrader/resources/electron/scripts/search_docs.sh:*)",
+      "Bash(diff:*)",
+      "Bash(./cmd/bin/stop_app.sh:*)",
+      "Bash(cat:*)",
+      "Bash(true)",
+      "Bash(./download_and_import.py setup)",
+      "Bash(/tmp/test_ilp:*)",
+      "Bash(./test_ilp.py)",
+      "Bash(./start-desktop.sh:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": false
 }
